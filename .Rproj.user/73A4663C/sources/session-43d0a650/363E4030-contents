@@ -1,0 +1,83 @@
+---
+title: ""
+format: html
+editor: visual
+---
+
+Loading data
+
+```{r}
+library(tidyverse)
+# This code lists objects in your Google Bucket
+# Get the bucket name
+my_bucket <- Sys.getenv('WORKSPACE_BUCKET')
+
+# List objects in the bucket
+system(paste0("gsutil ls -r ", my_bucket, '/data/3TL/'), intern=T)
+
+# This code copies a file from your Google Bucket into a dataframe
+# replace 'test.csv' with the name of the file in your google bucket (don't delete the quotation marks)
+name_of_file_in_bucket <- 'person_with_summary_inrange_indexdate_creatnine.csv'
+
+# Copy the file from current workspace to the bucket
+system(paste0("gsutil cp ", my_bucket, "/data/3TL/", name_of_file_in_bucket, " ."), intern=T)
+
+
+
+# Load the file into a dataframe
+my_dataframe  <- read_csv(name_of_file_in_bucket)
+#head(my_dataframe)
+
+```
+
+Loading data polygenic scores
+
+```{r}
+library(tidyverse)
+# This code lists objects in your Google Bucket
+# Get the bucket name
+my_bucket <- Sys.getenv('WORKSPACE_BUCKET')
+
+
+# List objects in the bucket
+system(paste0("gsutil ls -r ", my_bucket, '/data/'), intern=T)
+
+# Copy the files needed from current workspace to the bucket
+system(paste0("gsutil cp ", my_bucket, "/data/pgs/", "eur_EFO_0003884_final.sscore", " ."), intern=T)
+
+# Load the file into a dataframe
+my_dataframe_eur  <-read.csv("~/eur_EFO_0003884_final.sscore", sep="")
+
+```
+
+Saving data
+
+```{r}
+# Get the bucket name from the environment variable
+my_bucket <- Sys.getenv("WORKSPACE_BUCKET")
+
+# Ensure the bucket variable is not empty
+# Copy the .RData file to the GCS bucket
+namelist = c(
+  "source.qmd")
+for(name in namelist){
+  print(name)
+  args <- c("cp", name, paste0(my_bucket, "/data/3TL/"))
+  result <- system2("gsutil", args, stdout = TRUE, stderr = TRUE)
+  
+  # List objects in the bucket
+  system(paste0("gsutil ls -r ", my_bucket, '/data/3TL/'), intern=T) 
+}
+
+
+
+
+```
+
+# Read in data
+
+```{r}
+name_of_file_in_bucket <- 'person_with_summary_inrange_indexdate_creatnine.csv' 
+my_dataframe  <- read_csv(name_of_file_in_bucket)
+
+```

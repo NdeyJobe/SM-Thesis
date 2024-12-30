@@ -1,0 +1,24 @@
+"0",""
+"0",""
+"0","# Save as images"
+"0","library(webshot2)"
+"0","gtsave(table_2yr, ""2_year_prediction_table.png"")"
+"2","file:////var/folders/rm/lmt3np6171v_qbhnz9bzmqrh0000gn/T//RtmpBLyiEk/file32ae49d533.html screenshot completed
+"
+"0","gtsave(table_5yr, ""5_year_prediction_table.png"")"
+"2","file:////var/folders/rm/lmt3np6171v_qbhnz9bzmqrh0000gn/T//RtmpBLyiEk/file32a6b457ee8.html screenshot completed
+"
+"0","# Load magick library for image manipulation"
+"0","library(magick)"
+"2","Warning: package ‘magick’ was built under R version 4.4.1"
+"2","Linking to ImageMagick 6.9.12.93
+Enabled features: cairo, fontconfig, freetype, heic, lcms, pango, raw, rsvg, webp
+Disabled features: fftw, ghostscript, x11
+"
+"0","img_2yr <- image_read(""2_year_prediction_table.png"")"
+"0","img_5yr <- image_read(""5_year_prediction_table.png"")"
+"0",""
+"0","# Combine images side-by-side"
+"0","very_high_risk_combined_img <- image_append(c(img_2yr, img_5yr))"
+"0","image_write(very_high_risk_combined_img, path = ""very_high_risk_combined_prediction_table.png"", format = ""png"")"
+"0",""

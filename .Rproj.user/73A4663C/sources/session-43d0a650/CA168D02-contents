@@ -1,0 +1,1052 @@
+---
+title: "Untitled"
+format: html
+---
+
+# CKD VERY HIGH RISK
+
+```{r}
+# Define the data structure for the Very High Risk population in the MDRD model based on the image
+data_very_high_risk_mdrd <- data.frame(
+  Model = "MDRD",
+  Race = c("All Races", "All Races", 
+           "Black or African American", "Black or African American",
+           "White", "White",
+           "Asian", "Asian"),
+  Time_Horizon = c("2 Years", "5 Years",
+                   "2 Years", "5 Years",
+                   "2 Years", "5 Years",
+                   "2 Years", "5 Years"),
+  Harrell_C_Statistic = c(0.7796862, 0.7681993,
+                          0.7027738, 0.6884975,
+                          0.7913657, 0.7798576,
+                          0.8242678, 0.8234086),
+  C_Stat_Lower_CI = c(0.7551649, 0.7455135,
+                      0.6544281, 0.6500784,
+                      0.7588726, 0.7448750,
+                      0.7167957, 0.7049007),
+  C_Stat_Upper_CI = c(0.8024935, 0.7913577,
+                      0.7472212, 0.7317082,
+                      0.8256787, 0.8091300,
+                      0.9201174, 0.9180599)
+)
+
+# Define the data structure for the Very High Risk population in the CKD-EPI 2009 model
+data_very_high_risk_ckd_epi_2009 <- data.frame(
+  Model = "CKD-EPI 2009",
+  Race = c("All Races", "All Races", 
+           "Black or African American", "Black or African American",
+           "White", "White",
+           "Asian", "Asian"),
+  Time_Horizon = c("2 Years", "5 Years",
+                   "2 Years", "5 Years",
+                   "2 Years", "5 Years",
+                   "2 Years", "5 Years"),
+  Harrell_C_Statistic = c(0.8133011, 0.8006516,
+                          0.7437561, 0.7280158,
+                          0.8221486, 0.8097993,
+                          0.8179916, 0.8172485),
+  C_Stat_Lower_CI = c(0.7940475, 0.7781427,
+                      0.7010950, 0.6896557,
+                      0.7933517, 0.7817082,
+                      0.7082415, 0.7011015),
+  C_Stat_Upper_CI = c(0.8348017, 0.8224957,
+                      0.7832441, 0.7649284,
+                      0.8503346, 0.8387628,
+                      0.9099883, 0.9150684)
+)
+
+# Define the data structure for the Very High Risk population in the CKD-EPI 2021 model
+data_very_high_risk_ckd_epi_2021 <- data.frame(
+  Model = "CKD-EPI 2021",
+  Race = c("All Races", "All Races", 
+           "Black or African American", "Black or African American",
+           "White", "White",
+           "Asian", "Asian"),
+  Time_Horizon = c("2 Years", "5 Years",
+                   "2 Years", "5 Years",
+                   "2 Years", "5 Years",
+                   "2 Years", "5 Years"),
+  Harrell_C_Statistic = c(0.7962800, 0.7800244,
+                          0.7596534, 0.7729973,
+                          0.7838463, 0.7711746,
+                          0.7923628, 0.7915691),
+  C_Stat_Lower_CI = c(0.7720418, 0.7567295,
+                      0.7612340, 0.7410740,
+                      0.7504880, 0.7372208,
+                      0.6657303, 0.6520657),
+  C_Stat_Upper_CI = c(0.8185504, 0.8007896,
+                      0.8279465, 0.8025911,
+                      0.8186405, 0.8025760,
+                      0.8947500, 0.8974375)
+)
+
+
+```
+
+# CKD HIGH RISK
+
+```{r}
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Define the hierarchical structure with exactly 12 rows for "CKD Very High Risk"
+Risk_Group <- c("CKD High Risk", rep("", 11))
+Race <- rep(c("  All Races", "", "", "  Black", "", "", "  White", "", "", "  Asian", "", ""), times = 1)
+Model <- rep(c("    MDRD", "    CKD-EPI-2009", "    CKD-EPI-2021"), times = 4)
+
+# Define example C_Statistic, CI_Lower, and CI_Upper values for 2-year and 5-year predictions including "All Races" as reference
+C_Statistic_2yr <- c(
+   #### HIGH RISK
+  # CKD High Risk - All Races
+  0.81, # All Races - MDRD - 2-year
+  0.84, # All Races - CKD-EPI-2009 - 2-year
+  0.85, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.77, # Black - CKD-EPI-2009 - 2-year
+  0.88, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.77, # White - MDRD - 2-year
+  0.83, # White - CKD-EPI-2009 - 2-year
+  0.83, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  0.67, # Asian - MDRD - 2-year
+  0.65, # Asian - CKD-EPI-2009 - 2-year
+  0.57)  # Asian - CKD-EPI-2021 - 2-year
+
+CI_Lower_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.72, # All Races - MDRD - 2-year CI Lower
+  0.78, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.78, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Black or African American
+  0.60, # Black - MDRD - 2-year CI Lower
+  0.69, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.81, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - White
+  0.62, # White - MDRD - 2-year CI Lower
+  0.70, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.71, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Asian
+  0.47, # Asian - MDRD - 2-year CI Lower
+  0.47, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.44)  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+
+CI_Upper_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.88, # All Races - MDRD - 2-year CI Upper
+  0.90, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.91, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Black or African American
+  0.78, # Black - MDRD - 2-year CI Upper
+  0.84, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.93, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - White
+  0.90, # White - MDRD - 2-year CI Upper
+  0.94, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.94, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Asian
+  1.00, # Asian - MDRD - 2-year CI Upper
+  1.00, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  1.00)  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  
+
+C_Statistic_5yr <- c(
+  # CKD Very High Risk - All Races
+  0.84, # All Races - MDRD - 5-year
+  0.85, # All Races - CKD-EPI-2009 - 5-year
+  0.84, # All Races - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Black or African American
+  0.72, # Black - MDRD - 5-year
+  0.76, # Black - CKD-EPI-2009 - 5-year
+  0.83, # Black - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - White
+  0.82, # White - MDRD - 5-year
+  0.85, # White - CKD-EPI-2009 - 5-year
+  0.85, # White - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Asian
+  0.74, # Asian - MDRD - 5-year
+  0.73, # Asian - CKD-EPI-2009 - 5-year
+  0.66)  # Asian - CKD-EPI-2021 - 5-year
+  
+CI_Lower_5yr <- c(
+  0.79, # All Races - MDRD - 5-year CI Lower
+  0.81, # All Races - CKD-EPI-2009 - 5-year CI Lower
+  0.79, # All Races - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.65, # Black - MDRD - 5-year CI Lower
+  0.70, # Black - CKD-EPI-2009 - 5-year CI Lower
+  0.77, # Black - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.74, # White - MDRD - 5-year CI Lower
+  0.78, # White - CKD-EPI-2009 - 5-year CI Lower
+  0.77, # White - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.50, # Asian - MDRD - 5-year CI Lower
+  0.50, # Asian - CKD-EPI-2009 - 5-year CI Lower
+  0.46)  # Asian - CKD-EPI-2021 - 5-year CI Lower
+  
+CI_Upper_5yr <- c(
+  0.88, # All Races - MDRD - 5-year CI Upper
+  0.89, # All Races - CKD-EPI-2009 - 5-year CI Upper
+  0.88, # All Races - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.78, # Black - MDRD - 5-year CI Upper
+  0.82, # Black - CKD-EPI-2009 - 5-year CI Upper
+  0.88, # Black - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.89, # White - MDRD - 5-year CI Upper
+  0.91, # White - CKD-EPI-2009 - 5-year CI Upper
+  0.91, # White - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.97, # Asian - MDRD - 5-year CI Upper
+  0.98, # Asian - CKD-EPI-2009 - 5-year CI Upper
+  0.98)  # Asian - CKD-EPI-2021 - 5-year CI Upper
+
+# Combine data for 2-year and 5-year predictions, filtering only for "CKD Very High Risk"
+data_2yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_2yr,
+  CI_Lower = CI_Lower_2yr,
+  CI_Upper = CI_Upper_2yr
+) %>% filter(Risk_Group == "CKD High Risk" | Risk_Group == "")
+
+data_5yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_5yr,
+  CI_Lower = CI_Lower_5yr,
+  CI_Upper = CI_Upper_5yr
+) %>% filter(Risk_Group == "CKD High Risk" | Risk_Group == "")
+
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Function to create gt table with enhanced visibility for publication
+create_gt_table <- function(data, title) {
+  data %>%
+    mutate(
+      CI_Label = sprintf("%.2f (%.2f–%.2f)", C_Statistic, CI_Lower, CI_Upper),
+      Error_Bar = paste0("⎯", strrep("⎯", round((C_Statistic - CI_Lower) / 0.01)), "●", strrep("⎯", round((CI_Upper - C_Statistic) / 0.01)), "⎯")
+    ) %>%
+    gt() %>%
+    cols_hide(columns = c(C_Statistic, CI_Lower, CI_Upper)) %>%
+    tab_header(
+      title = md(paste0("**Hierarchical Forest Plot Table - ", title, "**"))
+    ) %>%
+    cols_label(
+      Risk_Group = md("**Cohort / Population**"),
+      Model = md("**Prediction Model**"),
+      CI_Label = md("**C Statistic (95% CI)**"),
+      Error_Bar = md("**Error Bar with Point Estimate**")
+    ) %>%
+    fmt_markdown(columns = c(Risk_Group, Race, Model)) %>%
+    tab_style(
+      style = cell_text(weight = "bold", size = px(20)), # Bold and larger for Risk Group
+      locations = cells_body(columns = "Risk_Group", rows = data$Risk_Group == "CKD High Risk")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(20), weight = "bold", size = px(18)), # Bold and larger for Race
+      locations = cells_body(columns = "Race")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(40), weight = "bold", size = px(18)), # Bold and larger for Model
+      locations = cells_body(columns = "Model")
+    ) %>%
+    cols_align(align = "center", columns = c("CI_Label", "Error_Bar")) %>%
+    tab_options(
+      table.font.size = px(18), # Increase overall font size
+      data_row.padding = px(12), # Add more padding to rows for better readability
+      heading.title.font.size = px(24), # Much larger title font size
+      column_labels.font.size = px(20)  # Larger column label font size
+    ) %>%
+    tab_style(
+      style = cell_text(color = "blue", weight = "bold", size = px(16)), # Larger and bold for MDRD error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    MDRD")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "green", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2009 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2009")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "red", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2021 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2021")
+    )
+}
+
+
+
+# # Install necessary libraries if not already installed
+# # install.packages("webshot2")
+# library(webshot2)
+# 
+# # Save as images
+# gtsave(table_2yr, "2_year_prediction_table.png")
+# gtsave(table_5yr, "5_year_prediction_table.png")
+# 
+# # Load magick library
+# library(magick)
+# 
+# # Read the saved images
+# img_2yr <- image_read("2_year_prediction_table.png")
+# img_5yr <- image_read("5_year_prediction_table.png")
+# 
+# # Combine images side-by-side
+# combined_img <- image_append(c(img_2yr, img_5yr))
+# 
+# # Save the combined image
+# image_write(combined_img, path = "high_risk_combined_prediction_table.png", format = "png")
+```
+
+```         
+```
+
+# CKD MEDIUM RISK
+
+```{r}
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Define the hierarchical structure with exactly 12 rows for "CKD Very High Risk"
+Risk_Group <- c("CKD Medium Risk", rep("", 11))
+Race <- rep(c("  All Races", "", "", "  Black", "", "", "  White", "", "", "  Asian", "", ""), times = 1)
+Model <- rep(c("    MDRD", "    CKD-EPI-2009", "    CKD-EPI-2021"), times = 4)
+
+# Define example C_Statistic, CI_Lower, and CI_Upper values for 2-year and 5-year predictions including "All Races" as reference
+C_Statistic_2yr <- c(
+   #### HIGH RISK
+  # CKD High Risk - All Races
+  0.71, # All Races - MDRD - 2-year
+  0.72, # All Races - CKD-EPI-2009 - 2-year
+  0.73, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.79, # Black - MDRD - 2-year
+  0.77, # Black - CKD-EPI-2009 - 2-year
+  0.76, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.67, # White - MDRD - 2-year
+  0.70, # White - CKD-EPI-2009 - 2-year
+  0.71, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  0.90, # Asian - MDRD - 2-year
+  0.87, # Asian - CKD-EPI-2009 - 2-year
+  0.88)  # Asian - CKD-EPI-2021 - 2-year
+
+CI_Lower_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.64, # All Races - MDRD - 2-year CI Lower
+  0.64, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.65, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Black or African American
+  0.64, # Black - MDRD - 2-year CI Lower
+  0.62, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.60, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - White
+  0.56, # White - MDRD - 2-year CI Lower
+  0.60, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.62, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Asian
+  0.80, # Asian - MDRD - 2-year CI Lower
+  0.21, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.19)  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+
+CI_Upper_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.79, # All Races - MDRD - 2-year CI Upper
+  0.79, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Black or African American
+  0.90, # Black - MDRD - 2-year CI Upper
+  0.89, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.89, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - White
+  0.76, # White - MDRD - 2-year CI Upper
+  0.79, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Asian
+  0.99, # Asian - MDRD - 2-year CI Upper
+  0.98, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  0.98)  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  
+
+C_Statistic_5yr <- c(
+  # CKD Very High Risk - All Races
+  0.69, # All Races - MDRD - 5-year
+  0.70, # All Races - CKD-EPI-2009 - 5-year
+  0.71, # All Races - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Black or African American
+  0.77, # Black - MDRD - 5-year
+  0.76, # Black - CKD-EPI-2009 - 5-year
+  0.75, # Black - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - White
+  0.66, # White - MDRD - 5-year
+  0.69, # White - CKD-EPI-2009 - 5-year
+  0.69, # White - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Asian
+  0.79, # Asian - MDRD - 5-year
+  0.78, # Asian - CKD-EPI-2009 - 5-year
+  0.79)  # Asian - CKD-EPI-2021 - 5-year
+  
+CI_Lower_5yr <- c(
+  0.64, # All Races - MDRD - 5-year CI Lower
+  0.65, # All Races - CKD-EPI-2009 - 5-year CI Lower
+  0.66, # All Races - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.64, # Black - MDRD - 5-year CI Lower
+  0.62, # Black - CKD-EPI-2009 - 5-year CI Lower
+  0.60, # Black - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.59, # White - MDRD - 5-year CI Lower
+  0.62, # White - CKD-EPI-2009 - 5-year CI Lower
+  0.62, # White - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.49, # Asian - MDRD - 5-year CI Lower
+  0.35, # Asian - CKD-EPI-2009 - 5-year CI Lower
+  0.26)  # Asian - CKD-EPI-2021 - 5-year CI Lower
+  
+CI_Upper_5yr <- c(
+  0.74, # All Races - MDRD - 5-year CI Upper
+  0.75, # All Races - CKD-EPI-2009 - 5-year CI Upper
+  0.76, # All Races - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.84, # Black - MDRD - 5-year CI Upper
+  0.84, # Black - CKD-EPI-2009 - 5-year CI Upper
+  0.83, # Black - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.72, # White - MDRD - 5-year CI Upper
+  0.75, # White - CKD-EPI-2009 - 5-year CI Upper
+  0.75, # White - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.93, # Asian - MDRD - 5-year CI Upper
+  0.92, # Asian - CKD-EPI-2009 - 5-year CI Upper
+  0.93)  # Asian - CKD-EPI-2021 - 5-year CI Upper
+
+
+# Combine data for 2-year and 5-year predictions, filtering only for "CKD Very High Risk"
+data_2yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_2yr,
+  CI_Lower = CI_Lower_2yr,
+  CI_Upper = CI_Upper_2yr
+) %>% filter(Risk_Group == "CKD Medium Risk" | Risk_Group == "")
+
+data_5yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_5yr,
+  CI_Lower = CI_Lower_5yr,
+  CI_Upper = CI_Upper_5yr
+) %>% filter(Risk_Group == "CKD Medium Risk" | Risk_Group == "")
+
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Function to create gt table with enhanced visibility for publication
+create_gt_table <- function(data, title) {
+  data %>%
+    mutate(
+      CI_Label = sprintf("%.2f (%.2f–%.2f)", C_Statistic, CI_Lower, CI_Upper),
+      Error_Bar = paste0("⎯", strrep("⎯", round((C_Statistic - CI_Lower) / 0.01)), "●", strrep("⎯", round((CI_Upper - C_Statistic) / 0.01)), "⎯")
+    ) %>%
+    gt() %>%
+    cols_hide(columns = c(C_Statistic, CI_Lower, CI_Upper)) %>%
+    tab_header(
+      title = md(paste0("**Hierarchical Forest Plot Table - ", title, "**"))
+    ) %>%
+    cols_label(
+      Risk_Group = md("**Cohort / Population**"),
+      Model = md("**Prediction Model**"),
+      CI_Label = md("**C Statistic (95% CI)**"),
+      Error_Bar = md("**Error Bar with Point Estimate**")
+    ) %>%
+    fmt_markdown(columns = c(Risk_Group, Race, Model)) %>%
+    tab_style(
+      style = cell_text(weight = "bold", size = px(20)), # Bold and larger for Risk Group
+      locations = cells_body(columns = "Risk_Group", rows = data$Risk_Group == "CKD Very High Risk")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(20), weight = "bold", size = px(18)), # Bold and larger for Race
+      locations = cells_body(columns = "Race")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(40), weight = "bold", size = px(18)), # Bold and larger for Model
+      locations = cells_body(columns = "Model")
+    ) %>%
+    cols_align(align = "center", columns = c("CI_Label", "Error_Bar")) %>%
+    tab_options(
+      table.font.size = px(18), # Increase overall font size
+      data_row.padding = px(12), # Add more padding to rows for better readability
+      heading.title.font.size = px(24), # Much larger title font size
+      column_labels.font.size = px(20)  # Larger column label font size
+    ) %>%
+    tab_style(
+      style = cell_text(color = "blue", weight = "bold", size = px(16)), # Larger and bold for MDRD error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    MDRD")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "green", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2009 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2009")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "red", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2021 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2021")
+    )
+}
+
+# Create tables for both 2-year and 5-year predictions with larger fonts
+table_2yr <- create_gt_table(data_2yr, title = "2-year Prediction")
+table_5yr <- create_gt_table(data_5yr, title = "5-year Prediction")
+
+# Display the tables
+table_2yr
+table_5yr
+
+
+# Save as images
+library(webshot2)
+gtsave(table_2yr, "2_year_prediction_table.png")
+gtsave(table_5yr, "5_year_prediction_table.png")
+
+# Load necessary libraries
+library(magick)
+
+# # Create a transparent or white blank image for spacing
+# space <- image_blank(width = 50, height = image_info(img_2yr)$height, color = "white") # Adjust width for desired spacing
+# 
+# # Combine images side-by-side with spacing
+# very_high_risk_combined_img <- image_append(c(img_2yr, space, img_5yr))
+# 
+# # Save the combined image
+# image_write(very_high_risk_combined_img, path = "medium_risk_combined_prediction_table_with_space.png", format = "png")
+
+```
+
+# DIABETIC POPULATION
+
+```{r}
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Define the hierarchical structure with exactly 12 rows for "CKD Very High Risk"
+Risk_Group <- c("Diabetic", rep("", 11))
+Race <- rep(c("  All Races", "", "", "  Black", "", "", "  White", "", "", "  Asian", "", ""), times = 1)
+Model <- rep(c("    MDRD", "    CKD-EPI-2009", "    CKD-EPI-2021"), times = 4)
+
+# Define example C_Statistic, CI_Lower, and CI_Upper values for 2-year and 5-year predictions including "All Races" as reference
+C_Statistic_2yr <- c(
+   #### HIGH RISK
+  # CKD High Risk - All Races
+  0.93, # All Races - MDRD - 2-year
+  0.93, # All Races - CKD-EPI-2009 - 2-year
+  0.94, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.96, # Black - MDRD - 2-year
+  0.95, # Black - CKD-EPI-2009 - 2-year
+  0.95 , # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.92, # White - MDRD - 2-year
+  0.92, # White - CKD-EPI-2009 - 2-year
+  0.92, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  1.00, # Asian - MDRD - 2-year
+  1.00, # Asian - CKD-EPI-2009 - 2-year
+  1.00)  # Asian - CKD-EPI-2021 - 2-year
+
+CI_Lower_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.90, # All Races - MDRD - 2-year CI Lower
+  0.90, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.91, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Black or African American
+  0.92, # Black - MDRD - 2-year CI Lower
+  0.92, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.91, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - White
+  0.87, # White - MDRD - 2-year CI Lower
+  0.88, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.88, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Asian
+  0.99, # Asian - MDRD - 2-year CI Lower
+  0.99, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.99)  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+
+CI_Upper_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.96, # All Races - MDRD - 2-year CI Upper
+  0.96, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.96, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Black or African American
+  0.99, # Black - MDRD - 2-year CI Upper
+  0.99, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.98, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - White
+  0.96, # White - MDRD - 2-year CI Upper
+  0.96, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.96, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Asian
+  1.00, # Asian - MDRD - 2-year CI Upper
+  1.00, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  1.00)  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  
+
+C_Statistic_5yr <- c(
+  # CKD Very High Risk - All Races
+  0.89, # All Races - MDRD - 5-year
+  0.90, # All Races - CKD-EPI-2009 - 5-year
+  0.90, # All Races - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Black or African American
+  0.93, # Black - MDRD - 5-year
+  0.93, # Black - CKD-EPI-2009 - 5-year
+  0.94, # Black - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - White
+  0.87, # White - MDRD - 5-year
+  0.87, # White - CKD-EPI-2009 - 5-year
+  0.87, # White - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Asian
+  0.93, # Asian - MDRD - 5-year
+  0.93, # Asian - CKD-EPI-2009 - 5-year
+  0.93)  # Asian - CKD-EPI-2021 - 5-year
+  
+CI_Lower_5yr <- c(
+  0.86, # All Races - MDRD - 5-year CI Lower
+  0.86, # All Races - CKD-EPI-2009 - 5-year CI Lower
+  0.87, # All Races - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.90, # Black - MDRD - 5-year CI Lower
+  0.90, # Black - CKD-EPI-2009 - 5-year CI Lower
+  0.90, # Black - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.83, # White - MDRD - 5-year CI Lower
+  0.83, # White - CKD-EPI-2009 - 5-year CI Lower
+  0.83, # White - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.80, # Asian - MDRD - 5-year CI Lower
+  0.81, # Asian - CKD-EPI-2009 - 5-year CI Lower
+  0.80)  # Asian - CKD-EPI-2021 - 5-year CI Lower
+  
+CI_Upper_5yr <- c(
+  0.92, # All Races - MDRD - 5-year CI Upper
+  0.92, # All Races - CKD-EPI-2009 - 5-year CI Upper
+  0.93, # All Races - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.97, # Black - MDRD - 5-year CI Upper
+  0.97, # Black - CKD-EPI-2009 - 5-year CI Upper
+  0.97, # Black - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.91, # White - MDRD - 5-year CI Upper
+  0.91, # White - CKD-EPI-2009 - 5-year CI Upper
+  0.91, # White - CKD-EPI-2021 - 5-year CI Upper
+  
+  1.00, # Asian - MDRD - 5-year CI Upper
+  1.00, # Asian - CKD-EPI-2009 - 5-year CI Upper
+  1.00)  # Asian - CKD-EPI-2021 - 5-year CI Upper
+
+
+# Combine data for 2-year and 5-year predictions, filtering only for "CKD Very High Risk"
+data_2yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_2yr,
+  CI_Lower = CI_Lower_2yr,
+  CI_Upper = CI_Upper_2yr
+) %>% filter(Risk_Group == "Diabetic" | Risk_Group == "")
+
+data_5yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_5yr,
+  CI_Lower = CI_Lower_5yr,
+  CI_Upper = CI_Upper_5yr
+) %>% filter(Risk_Group == "Diabetic" | Risk_Group == "")
+
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Function to create gt table with enhanced visibility for publication
+create_gt_table <- function(data, title) {
+  data %>%
+    mutate(
+      CI_Label = sprintf("%.2f (%.2f–%.2f)", C_Statistic, CI_Lower, CI_Upper),
+      Error_Bar = paste0("⎯", strrep("⎯", round((C_Statistic - CI_Lower) / 0.01)), "●", strrep("⎯", round((CI_Upper - C_Statistic) / 0.01)), "⎯")
+    ) %>%
+    gt() %>%
+    cols_hide(columns = c(C_Statistic, CI_Lower, CI_Upper)) %>%
+    tab_header(
+      title = md(paste0("**Diabetic - ", title, "**"))
+    ) %>%
+    cols_label(
+      Risk_Group = md("**Cohort / Population**"),
+      Model = md("**Prediction Model**"),
+      CI_Label = md("**C Statistic (95% CI)**"),
+      Error_Bar = md("**Error Bar with Point Estimate**")
+    ) %>%
+    fmt_markdown(columns = c(Risk_Group, Race, Model)) %>%
+    tab_style(
+      style = cell_text(weight = "bold", size = px(20)), # Bold and larger for Risk Group
+      locations = cells_body(columns = "Risk_Group", rows = data$Risk_Group == "Diabetic")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(20), weight = "bold", size = px(18)), # Bold and larger for Race
+      locations = cells_body(columns = "Race")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(40), weight = "bold", size = px(18)), # Bold and larger for Model
+      locations = cells_body(columns = "Model")
+    ) %>%
+    cols_align(align = "center", columns = c("CI_Label", "Error_Bar")) %>%
+    tab_options(
+      table.font.size = px(18), # Increase overall font size
+      data_row.padding = px(12), # Add more padding to rows for better readability
+      heading.title.font.size = px(24), # Much larger title font size
+      column_labels.font.size = px(20)  # Larger column label font size
+    ) %>%
+    tab_style(
+      style = cell_text(color = "blue", weight = "bold", size = px(16)), # Larger and bold for MDRD error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    MDRD")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "green", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2009 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2009")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "red", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2021 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2021")
+    )
+}
+
+# Create tables for both 2-year and 5-year predictions with larger fonts
+table_2yr <- create_gt_table(data_2yr, title = "2-year Prediction")
+table_5yr <- create_gt_table(data_5yr, title = "5-year Prediction")
+
+# Display the tables
+table_2yr
+table_5yr
+
+
+# Save as images
+library(webshot2)
+gtsave(table_2yr, "2_year_prediction_table.png")
+gtsave(table_5yr, "5_year_prediction_table.png")
+
+# Load necessary libraries
+library(magick)
+
+# # Create a transparent or white blank image for spacing
+# space <- image_blank(width = 50, height = image_info(img_2yr)$height, color = "white") # Adjust width for desired spacing
+# 
+# # Combine images side-by-side with spacing
+# very_high_risk_combined_img <- image_append(c(img_2yr, space, img_5yr))
+# 
+# # Save the combined image
+# image_write(very_high_risk_combined_img, path = "diabetic_combined_prediction_table_with_space.png", format = "png")
+
+```
+
+# HYPERTENSIVE POPULATION
+
+```{r}
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Define the hierarchical structure with exactly 12 rows for "CKD Very High Risk"
+Risk_Group <- c("Hypertensive", rep("", 11))
+Race <- rep(c("  All Races", "", "", "  Black", "", "", "  White", "", "", "  Asian", "", ""), times = 1)
+Model <- rep(c("    MDRD", "    CKD-EPI-2009", "    CKD-EPI-2021"), times = 4)
+
+# Define example C_Statistic, CI_Lower, and CI_Upper values for 2-year and 5-year predictions including "All Races" as reference
+C_Statistic_2yr <- c(
+   #### HIGH RISK
+  # CKD High Risk - All Races
+  0.92, # All Races - MDRD - 2-year
+  0.92, # All Races - CKD-EPI-2009 - 2-year
+  0.92, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.99, # Black - MDRD - 2-year
+  0.99, # Black - CKD-EPI-2009 - 2-year
+  0.99, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.89, # White - MDRD - 2-year
+  0.88, # White - CKD-EPI-2009 - 2-year
+  0.88, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  0.97, # Asian - MDRD - 2-year
+  0.97, # Asian - CKD-EPI-2009 - 2-year
+  0.97)  # Asian - CKD-EPI-2021 - 2-year
+
+CI_Lower_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.86, # All Races - MDRD - 2-year CI Lower
+  0.85, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.85, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Black or African American
+  0.97, # Black - MDRD - 2-year CI Lower
+  0.96, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.97, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - White
+  0.79, # White - MDRD - 2-year CI Lower
+  0.77, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.77, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Asian
+  0.90, # Asian - MDRD - 2-year CI Lower
+  0.90, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.90)  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+
+CI_Upper_2yr <- c(
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.97, # All Races - MDRD - 2-year CI Upper
+  0.97, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.98, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Black or African American
+  1.00, # Black - MDRD - 2-year CI Upper
+  1.00, # Black - CKD-EPI-2009 - 2-year CI Upper
+  1.00, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - White
+  0.96, # White - MDRD - 2-year CI Upper
+  0.97, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.97, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Asian
+  1.00, # Asian - MDRD - 2-year CI Upper
+  1.00, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  1.00)  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  
+
+C_Statistic_5yr <- c(
+  # CKD Very High Risk - All Races
+  0.88, # All Races - MDRD - 5-year
+  0.88, # All Races - CKD-EPI-2009 - 5-year
+  0.88, # All Races - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Black or African American
+  0.97, # Black - MDRD - 5-year
+  0.97, # Black - CKD-EPI-2009 - 5-year
+  0.98, # Black - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - White
+  0.83, # White - MDRD - 5-year
+  0.83, # White - CKD-EPI-2009 - 5-year
+  0.83, # White - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Asian
+  0.97, # Asian - MDRD - 5-year
+  0.97, # Asian - CKD-EPI-2009 - 5-year
+  0.97)  # Asian - CKD-EPI-2021 - 5-year
+  
+CI_Lower_5yr <- c(
+  0.81, # All Races - MDRD - 5-year CI Lower
+  0.81, # All Races - CKD-EPI-2009 - 5-year CI Lower
+  0.81, # All Races - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.95, # Black - MDRD - 5-year CI Lower
+  0.95, # Black - CKD-EPI-2009 - 5-year CI Lower
+  0.95, # Black - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.73, # White - MDRD - 5-year CI Lower
+  0.73, # White - CKD-EPI-2009 - 5-year CI Lower
+  0.73, # White - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.90, # Asian - MDRD - 5-year CI Lower
+  0.89, # Asian - CKD-EPI-2009 - 5-year CI Lower
+  0.89)  # Asian - CKD-EPI-2021 - 5-year CI Lower
+  
+CI_Upper_5yr <- c(
+  0.93, # All Races - MDRD - 5-year CI Upper
+  0.93, # All Races - CKD-EPI-2009 - 5-year CI Upper
+  0.94, # All Races - CKD-EPI-2021 - 5-year CI Upper
+  
+  1.00, # Black - MDRD - 5-year CI Upper
+  1.00, # Black - CKD-EPI-2009 - 5-year CI Upper
+  1.00, # Black - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.92, # White - MDRD - 5-year CI Upper
+  0.92, # White - CKD-EPI-2009 - 5-year CI Upper
+  0.92, # White - CKD-EPI-2021 - 5-year CI Upper
+  
+  1.00, # Asian - MDRD - 5-year CI Upper
+  1.00, # Asian - CKD-EPI-2009 - 5-year CI Upper
+  1.00)  # Asian - CKD-EPI-2021 - 5-year CI Upper
+
+
+# Combine data for 2-year and 5-year predictions, filtering only for "CKD Very High Risk"
+data_2yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_2yr,
+  CI_Lower = CI_Lower_2yr,
+  CI_Upper = CI_Upper_2yr
+) %>% filter(Risk_Group == "Hypertensive" | Risk_Group == "")
+
+data_5yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_5yr,
+  CI_Lower = CI_Lower_5yr,
+  CI_Upper = CI_Upper_5yr
+) %>% filter(Risk_Group == "Hypertensive" | Risk_Group == "")
+
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Function to create gt table with enhanced visibility for publication
+create_gt_table <- function(data, title) {
+  data %>%
+    mutate(
+      CI_Label = sprintf("%.2f (%.2f–%.2f)", C_Statistic, CI_Lower, CI_Upper),
+      Error_Bar = paste0("⎯", strrep("⎯", round((C_Statistic - CI_Lower) / 0.01)), "●", strrep("⎯", round((CI_Upper - C_Statistic) / 0.01)), "⎯")
+    ) %>%
+    gt() %>%
+    cols_hide(columns = c(C_Statistic, CI_Lower, CI_Upper)) %>%
+    tab_header(
+      title = md(paste0("**Hierarchical Forest Plot Table - ", title, "**"))
+    ) %>%
+    cols_label(
+      Risk_Group = md("**Cohort / Population**"),
+      Model = md("**Prediction Model**"),
+      CI_Label = md("**C Statistic (95% CI)**"),
+      Error_Bar = md("**Error Bar with Point Estimate**")
+    ) %>%
+    fmt_markdown(columns = c(Risk_Group, Race, Model)) %>%
+    tab_style(
+      style = cell_text(weight = "bold", size = px(20)), # Bold and larger for Risk Group
+      locations = cells_body(columns = "Risk_Group", rows = data$Risk_Group == "CKD Very High Risk")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(20), weight = "bold", size = px(18)), # Bold and larger for Race
+      locations = cells_body(columns = "Race")
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(40), weight = "bold", size = px(18)), # Bold and larger for Model
+      locations = cells_body(columns = "Model")
+    ) %>%
+    cols_align(align = "center", columns = c("CI_Label", "Error_Bar")) %>%
+    tab_options(
+      table.font.size = px(18), # Increase overall font size
+      data_row.padding = px(12), # Add more padding to rows for better readability
+      heading.title.font.size = px(24), # Much larger title font size
+      column_labels.font.size = px(20)  # Larger column label font size
+    ) %>%
+    tab_style(
+      style = cell_text(color = "blue", weight = "bold", size = px(16)), # Larger and bold for MDRD error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    MDRD")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "green", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2009 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2009")
+    ) %>%
+    tab_style(
+      style = cell_text(color = "red", weight = "bold", size = px(16)), # Larger and bold for CKD-EPI-2021 error bar
+      locations = cells_body(columns = "Error_Bar", rows = data$Model == "    CKD-EPI-2021")
+    )
+}
+
+# Create tables for both 2-year and 5-year predictions with larger fonts
+table_2yr <- create_gt_table(data_2yr, title = "2-year Prediction")
+table_5yr <- create_gt_table(data_5yr, title = "5-year Prediction")
+
+# Display the tables
+table_2yr
+table_5yr
+
+
+# Save as images
+library(webshot2)
+gtsave(table_2yr, "2_year_prediction_table.png")
+gtsave(table_5yr, "5_year_prediction_table.png")
+
+# Load magick library for image manipulation
+library(magick)
+img_2yr <- image_read("2_year_prediction_table.png")
+img_5yr <- image_read("5_year_prediction_table.png")
+
+# Load necessary libraries
+library(magick)
+
+# Create a transparent or white blank image for spacing
+space <- image_blank(width = 50, height = image_info(img_2yr)$height, color = "white") # Adjust width for desired spacing
+
+# Combine images side-by-side with spacing
+very_high_risk_combined_img <- image_append(c(img_2yr, space, img_5yr))
+
+# Save the combined image
+image_write(very_high_risk_combined_img, path = "hypertensive_combined_prediction_table_with_space.png", format = "png")
+
+```

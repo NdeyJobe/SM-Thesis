@@ -1,0 +1,2637 @@
+---
+title: "socioeconomic_cohort"
+format: html
+editor: visual
+---
+
+Smoking Data Import
+
+```{r}
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "followup_cohort_data" for domain "person" and was generated for All of Us Controlled Tier Dataset v7
+dataset_48995884_person_sql <- paste("
+    SELECT
+        person.person_id,
+        p_gender_concept.concept_name as gender,
+        person.birth_datetime as date_of_birth,
+        p_race_concept.concept_name as race,
+        p_ethnicity_concept.concept_name as ethnicity,
+        p_sex_at_birth_concept.concept_name as sex_at_birth
+    FROM
+        `person` person
+    LEFT JOIN
+        `concept` p_gender_concept
+            ON person.gender_concept_id = p_gender_concept.concept_id
+    LEFT JOIN
+        `concept` p_race_concept
+            ON person.race_concept_id = p_race_concept.concept_id
+    LEFT JOIN
+        `concept` p_ethnicity_concept
+            ON person.ethnicity_concept_id = p_ethnicity_concept.concept_id
+    LEFT JOIN
+        `concept` p_sex_at_birth_concept
+            ON person.sex_at_birth_concept_id = p_sex_at_birth_concept.concept_id
+    WHERE
+        person.PERSON_ID IN (SELECT
+            distinct person_id
+        FROM
+            `cb_search_person` cb_search_person
+        WHERE
+            cb_search_person.person_id IN (SELECT
+                person_id
+            FROM
+                `person` p
+            WHERE
+                race_concept_id IN (8527, 8516, 2100000001, 8515, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) )
+            AND cb_search_person.person_id IN (SELECT
+                criteria.person_id
+            FROM
+                (SELECT
+                    DISTINCT person_id, entry_date, concept_id
+                FROM
+                    `cb_search_all_events`
+                WHERE
+                    (concept_id IN (1585857)
+                    AND is_standard = 0
+                    AND  value_source_concept_id IN (1585858)
+                    OR  concept_id IN (1585857)
+                    AND is_standard = 0
+                    AND  value_source_concept_id IN (1585859))) criteria )
+            AND cb_search_person.person_id NOT IN (SELECT
+                criteria.person_id
+            FROM
+                (SELECT
+                    DISTINCT person_id, entry_date, concept_id
+                FROM
+                    `cb_search_all_events`
+                WHERE
+                    (concept_id IN(SELECT
+                        DISTINCT c.concept_id
+                    FROM
+                        `cb_criteria` c
+                    JOIN
+                        (SELECT
+                            CAST(cr.id as string) AS id
+                        FROM
+                            `cb_criteria` cr
+                        WHERE
+                            concept_id IN (440508)
+                            AND full_text LIKE '%_rank1]%'      ) a
+                            ON (c.path LIKE CONCAT('%.', a.id, '.%')
+                            OR c.path LIKE CONCAT('%.', a.id)
+                            OR c.path LIKE CONCAT(a.id, '.%')
+                            OR c.path = a.id)
+                    WHERE
+                        is_standard = 1
+                        AND is_selectable = 1)
+                    AND is_standard = 1 )) criteria )
+            AND cb_search_person.person_id NOT IN (SELECT
+                person_id
+            FROM
+                `person` p
+            WHERE
+                race_concept_id IN (2100000001, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+person_48995884_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "person_48995884",
+  "person_48995884_*.csv")
+message(str_glue('The data will be written to {person_48995884_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_48995884_person_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  person_48995884_path,
+  destination_format = "CSV")
+
+
+# Read the data directly from Cloud Storage into memory.
+# NOTE: Alternatively you can `gsutil -m cp {person_48995884_path}` to copy these files
+#       to the Jupyter disk.
+read_bq_export_from_workspace_bucket <- function(export_path) {
+  col_types <- cols(gender = col_character(), race = col_character(), ethnicity = col_character(), sex_at_birth = col_character())
+  bind_rows(
+    map(system2('gsutil', args = c('ls', export_path), stdout = TRUE, stderr = TRUE),
+        function(csv) {
+          message(str_glue('Loading {csv}.'))
+          chunk <- read_csv(pipe(str_glue('gsutil cat {csv}')), col_types = col_types, show_col_types = FALSE)
+          if (is.null(col_types)) {
+            col_types <- spec(chunk)
+          }
+          chunk
+        }))
+}
+dataset_48995884_person_df <- read_bq_export_from_workspace_bucket(person_48995884_path)
+
+dim(dataset_48995884_person_df)
+
+head(dataset_48995884_person_df, 5)
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "followup_cohort_data" for domain "survey" and was generated for All of Us Controlled Tier Dataset v7
+dataset_48995884_survey_sql <- paste("
+    SELECT
+        answer.person_id,
+        answer.survey_datetime,
+        answer.survey,
+        answer.question_concept_id,
+        answer.question,
+        answer.answer_concept_id,
+        answer.answer,
+        answer.survey_version_concept_id,
+        answer.survey_version_name
+    FROM
+        `ds_survey` answer
+    WHERE
+        (
+            question_concept_id IN (SELECT
+                DISTINCT concept_id
+            FROM
+                `cb_criteria` c
+            JOIN
+                (SELECT
+                    CAST(cr.id as string) AS id
+                FROM
+                    `cb_criteria` cr
+                WHERE
+                    concept_id IN (1585855)
+                    AND domain_id = 'SURVEY') a
+                    ON (c.path like CONCAT('%', a.id, '.%'))
+            WHERE
+                domain_id = 'SURVEY'
+                AND type = 'PPI'
+                AND subtype = 'QUESTION')
+        )
+        AND (
+            answer.PERSON_ID IN (SELECT
+                distinct person_id
+            FROM
+                `cb_search_person` cb_search_person
+            WHERE
+                cb_search_person.person_id IN (SELECT
+                    person_id
+                FROM
+                    `person` p
+                WHERE
+                    race_concept_id IN (8527, 8516, 2100000001, 8515, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) )
+                AND cb_search_person.person_id IN (SELECT
+                    criteria.person_id
+                FROM
+                    (SELECT
+                        DISTINCT person_id, entry_date, concept_id
+                    FROM
+                        `cb_search_all_events`
+                    WHERE
+                        (concept_id IN (1585857)
+                        AND is_standard = 0
+                        AND  value_source_concept_id IN (1585858)
+                        OR  concept_id IN (1585857)
+                        AND is_standard = 0
+                        AND  value_source_concept_id IN (1585859))) criteria )
+                AND cb_search_person.person_id NOT IN (SELECT
+                    criteria.person_id
+                FROM
+                    (SELECT
+                        DISTINCT person_id, entry_date, concept_id
+                    FROM
+                        `cb_search_all_events`
+                    WHERE
+                        (concept_id IN(SELECT
+                            DISTINCT c.concept_id
+                        FROM
+                            `cb_criteria` c
+                        JOIN
+                            (SELECT
+                                CAST(cr.id as string) AS id
+                            FROM
+                                `cb_criteria` cr
+                            WHERE
+                                concept_id IN (440508)
+                                AND full_text LIKE '%_rank1]%'      ) a
+                                ON (c.path LIKE CONCAT('%.', a.id, '.%')
+                                OR c.path LIKE CONCAT('%.', a.id)
+                                OR c.path LIKE CONCAT(a.id, '.%')
+                                OR c.path = a.id)
+                        WHERE
+                            is_standard = 1
+                            AND is_selectable = 1)
+                        AND is_standard = 1 )) criteria )
+                AND cb_search_person.person_id NOT IN (SELECT
+                    person_id
+                FROM
+                    `person` p
+                WHERE
+                    race_concept_id IN (2100000001, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) )
+        )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+survey_48995884_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "survey_48995884",
+  "survey_48995884_*.csv")
+message(str_glue('The data will be written to {survey_48995884_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_48995884_survey_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  survey_48995884_path,
+  destination_format = "CSV")
+
+
+# Read the data directly from Cloud Storage into memory.
+# NOTE: Alternatively you can `gsutil -m cp {survey_48995884_path}` to copy these files
+#       to the Jupyter disk.
+read_bq_export_from_workspace_bucket <- function(export_path) {
+  col_types <- cols(survey = col_character(), question = col_character(), answer = col_character(), survey_version_name = col_character())
+  bind_rows(
+    map(system2('gsutil', args = c('ls', export_path), stdout = TRUE, stderr = TRUE),
+        function(csv) {
+          message(str_glue('Loading {csv}.'))
+          chunk <- read_csv(pipe(str_glue('gsutil cat {csv}')), col_types = col_types, show_col_types = FALSE)
+          if (is.null(col_types)) {
+            col_types <- spec(chunk)
+          }
+          chunk
+        }))
+}
+dataset_48995884_survey_df <- read_bq_export_from_workspace_bucket(survey_48995884_path)
+
+dim(dataset_48995884_survey_df)
+
+head(dataset_48995884_survey_df, 5)
+```
+
+Data Wrangling
+
+```{r}
+library(dplyr)
+
+smoking <- dataset_48995884_survey_df
+person <- dataset_48995884_person_df
+
+# Alternatively, using dplyr
+filtered_smoking <- smoking %>%
+  filter(question == "Smoking: 100 Cigs Lifetime")
+
+person_with_summary_inrange_indexdate_creatnine <- read.csv("person_with_summary_inrange_indexdate_creatnine.csv")
+
+# Perform a left join to append the event_date to filtered_smoking based on person_id
+filtered_smoking <- filtered_smoking %>%
+  left_join(person_with_summary_inrange_indexdate_creatnine %>% select(person_id, index_date), by = "person_id")
+
+
+# Filter the data to exclude NA index_date and check if survey_datetime is before index_date
+smoking_status_before_index_date <- filtered_smoking %>%
+  filter(!is.na(index_date) & survey_datetime <= index_date)
+
+
+filtered_person_with_summary <- read.csv("person_with_summary_inrange_indexdate_creatnine.csv")
+
+
+# Rename the `answer` column in `filtered_smoking` to `smoking_status` before the join
+smoking_status_before_index_date <- smoking_status_before_index_date %>%
+  rename(smoking_status = answer)
+
+# Perform the left join to append the `smoking_status` column based on `person_id`
+filtered_person_with_summary <- filtered_person_with_summary %>%
+  left_join(smoking_status_before_index_date %>% select(person_id, smoking_status), by = "person_id")
+
+
+# Create a new categorical variable for smoking status
+filtered_person_with_summary <- filtered_person_with_summary %>%
+  mutate(
+    smoked_100_Cigs_lifetime = case_when(
+      smoking_status == "100 Cigs Lifetime: Yes" ~ "smoked_atleast_100_Cigs_lifetime",
+      smoking_status == "100 Cigs Lifetime: No" ~ "smoked_lessthan_100_Cigs_lifetime",
+      is.na(smoking_status) ~ "smoked_100_Cigs_lifetime_unknown"
+    )
+  )
+
+filtered_person_with_summary <- filtered_person_with_summary %>% select(-smoking_status)
+
+# Save the filtered_person_with_summary dataframe as refiltered_person_with_summary.csv
+write.csv(filtered_person_with_summary, file = "person_with_summary_inrange_indexdate_creatnine_smoking.csv", row.names = FALSE)
+
+```
+
+## Insured Data Import
+
+Basics: Are you covered by health insurance or some other kind of health care plan? - Yes or No
+
+```{r}
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "followup_cohort_data" for domain "person" and was generated for All of Us Controlled Tier Dataset v7
+dataset_09258510_person_sql <- paste("
+    SELECT
+        person.person_id,
+        p_gender_concept.concept_name as gender,
+        person.birth_datetime as date_of_birth,
+        p_race_concept.concept_name as race,
+        p_ethnicity_concept.concept_name as ethnicity,
+        p_sex_at_birth_concept.concept_name as sex_at_birth 
+    FROM
+        `person` person 
+    LEFT JOIN
+        `concept` p_gender_concept 
+            ON person.gender_concept_id = p_gender_concept.concept_id 
+    LEFT JOIN
+        `concept` p_race_concept 
+            ON person.race_concept_id = p_race_concept.concept_id 
+    LEFT JOIN
+        `concept` p_ethnicity_concept 
+            ON person.ethnicity_concept_id = p_ethnicity_concept.concept_id 
+    LEFT JOIN
+        `concept` p_sex_at_birth_concept 
+            ON person.sex_at_birth_concept_id = p_sex_at_birth_concept.concept_id  
+    WHERE
+        person.PERSON_ID IN (SELECT
+            distinct person_id  
+        FROM
+            `cb_search_person` cb_search_person  
+        WHERE
+            cb_search_person.person_id IN (SELECT
+                person_id 
+            FROM
+                `person` p 
+            WHERE
+                race_concept_id IN (8527, 8516, 2100000001, 8515, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) 
+            AND cb_search_person.person_id IN (SELECT
+                criteria.person_id 
+            FROM
+                (SELECT
+                    DISTINCT person_id, entry_date, concept_id 
+                FROM
+                    `cb_search_all_events` 
+                WHERE
+                    (concept_id IN (1585386) 
+                    AND is_standard = 0  
+                    AND  value_source_concept_id IN (1585387) 
+                    OR  concept_id IN (1585386) 
+                    AND is_standard = 0  
+                    AND  value_source_concept_id IN (1585388))) criteria ) 
+            AND cb_search_person.person_id NOT IN (SELECT
+                criteria.person_id 
+            FROM
+                (SELECT
+                    DISTINCT person_id, entry_date, concept_id 
+                FROM
+                    `cb_search_all_events` 
+                WHERE
+                    (concept_id IN(SELECT
+                        DISTINCT c.concept_id 
+                    FROM
+                        `cb_criteria` c 
+                    JOIN
+                        (SELECT
+                            CAST(cr.id as string) AS id       
+                        FROM
+                            `cb_criteria` cr       
+                        WHERE
+                            concept_id IN (440508)       
+                            AND full_text LIKE '%_rank1]%'      ) a 
+                            ON (c.path LIKE CONCAT('%.', a.id, '.%') 
+                            OR c.path LIKE CONCAT('%.', a.id) 
+                            OR c.path LIKE CONCAT(a.id, '.%') 
+                            OR c.path = a.id) 
+                    WHERE
+                        is_standard = 1 
+                        AND is_selectable = 1) 
+                    AND is_standard = 1 )) criteria ) 
+            AND cb_search_person.person_id NOT IN (SELECT
+                person_id 
+            FROM
+                `person` p 
+            WHERE
+                race_concept_id IN (2100000001, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+person_09258510_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "person_09258510",
+  "person_09258510_*.csv")
+message(str_glue('The data will be written to {person_09258510_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_09258510_person_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  person_09258510_path,
+  destination_format = "CSV")
+
+
+# Read the data directly from Cloud Storage into memory.
+# NOTE: Alternatively you can `gsutil -m cp {person_09258510_path}` to copy these files
+#       to the Jupyter disk.
+read_bq_export_from_workspace_bucket <- function(export_path) {
+  col_types <- cols(gender = col_character(), race = col_character(), ethnicity = col_character(), sex_at_birth = col_character())
+  bind_rows(
+    map(system2('gsutil', args = c('ls', export_path), stdout = TRUE, stderr = TRUE),
+        function(csv) {
+          message(str_glue('Loading {csv}.'))
+          chunk <- read_csv(pipe(str_glue('gsutil cat {csv}')), col_types = col_types, show_col_types = FALSE)
+          if (is.null(col_types)) {
+            col_types <- spec(chunk)
+          }
+          chunk
+        }))
+}
+dataset_09258510_person_df <- read_bq_export_from_workspace_bucket(person_09258510_path)
+
+dim(dataset_09258510_person_df)
+
+head(dataset_09258510_person_df, 5)
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "followup_cohort_data" for domain "survey" and was generated for All of Us Controlled Tier Dataset v7
+dataset_09258510_survey_sql <- paste("
+    SELECT
+        answer.person_id,
+        answer.survey_datetime,
+        answer.survey,
+        answer.question_concept_id,
+        answer.question,
+        answer.answer_concept_id,
+        answer.answer,
+        answer.survey_version_concept_id,
+        answer.survey_version_name  
+    FROM
+        `ds_survey` answer   
+    WHERE
+        (
+            question_concept_id IN (SELECT
+                DISTINCT concept_id                         
+            FROM
+                `cb_criteria` c                         
+            JOIN
+                (SELECT
+                    CAST(cr.id as string) AS id                               
+                FROM
+                    `cb_criteria` cr                               
+                WHERE
+                    concept_id IN (1586134)                               
+                    AND domain_id = 'SURVEY') a 
+                    ON (c.path like CONCAT('%', a.id, '.%'))                         
+            WHERE
+                domain_id = 'SURVEY'                         
+                AND type = 'PPI'                         
+                AND subtype = 'QUESTION')
+        )  
+        AND (
+            answer.PERSON_ID IN (SELECT
+                distinct person_id  
+            FROM
+                `cb_search_person` cb_search_person  
+            WHERE
+                cb_search_person.person_id IN (SELECT
+                    person_id 
+                FROM
+                    `person` p 
+                WHERE
+                    race_concept_id IN (8527, 8516, 2100000001, 8515, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) 
+                AND cb_search_person.person_id IN (SELECT
+                    criteria.person_id 
+                FROM
+                    (SELECT
+                        DISTINCT person_id, entry_date, concept_id 
+                    FROM
+                        `cb_search_all_events` 
+                    WHERE
+                        (concept_id IN (1585386) 
+                        AND is_standard = 0  
+                        AND  value_source_concept_id IN (1585387) 
+                        OR  concept_id IN (1585386) 
+                        AND is_standard = 0  
+                        AND  value_source_concept_id IN (1585388))) criteria ) 
+                AND cb_search_person.person_id NOT IN (SELECT
+                    criteria.person_id 
+                FROM
+                    (SELECT
+                        DISTINCT person_id, entry_date, concept_id 
+                    FROM
+                        `cb_search_all_events` 
+                    WHERE
+                        (concept_id IN(SELECT
+                            DISTINCT c.concept_id 
+                        FROM
+                            `cb_criteria` c 
+                        JOIN
+                            (SELECT
+                                CAST(cr.id as string) AS id       
+                            FROM
+                                `cb_criteria` cr       
+                            WHERE
+                                concept_id IN (440508)       
+                                AND full_text LIKE '%_rank1]%'      ) a 
+                                ON (c.path LIKE CONCAT('%.', a.id, '.%') 
+                                OR c.path LIKE CONCAT('%.', a.id) 
+                                OR c.path LIKE CONCAT(a.id, '.%') 
+                                OR c.path = a.id) 
+                        WHERE
+                            is_standard = 1 
+                            AND is_selectable = 1) 
+                        AND is_standard = 1 )) criteria ) 
+                AND cb_search_person.person_id NOT IN (SELECT
+                    person_id 
+                FROM
+                    `person` p 
+                WHERE
+                    race_concept_id IN (2100000001, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) )
+        )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+survey_09258510_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "survey_09258510",
+  "survey_09258510_*.csv")
+message(str_glue('The data will be written to {survey_09258510_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_09258510_survey_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  survey_09258510_path,
+  destination_format = "CSV")
+
+
+# Read the data directly from Cloud Storage into memory.
+# NOTE: Alternatively you can `gsutil -m cp {survey_09258510_path}` to copy these files
+#       to the Jupyter disk.
+read_bq_export_from_workspace_bucket <- function(export_path) {
+  col_types <- cols(survey = col_character(), question = col_character(), answer = col_character(), survey_version_name = col_character())
+  bind_rows(
+    map(system2('gsutil', args = c('ls', export_path), stdout = TRUE, stderr = TRUE),
+        function(csv) {
+          message(str_glue('Loading {csv}.'))
+          chunk <- read_csv(pipe(str_glue('gsutil cat {csv}')), col_types = col_types, show_col_types = FALSE)
+          if (is.null(col_types)) {
+            col_types <- spec(chunk)
+          }
+          chunk
+        }))
+}
+dataset_09258510_survey_df <- read_bq_export_from_workspace_bucket(survey_09258510_path)
+
+dim(dataset_09258510_survey_df)
+
+head(dataset_09258510_survey_df, 5)
+```
+
+Data Wrangling
+
+```{r}
+socioeconomic <- dataset_09258510_survey_df
+person <- dataset_09258510_person_df
+
+# Alternatively, using dplyr
+filtered_socioeconomic <- socioeconomic %>%
+  filter(question == "Insurance: Health Insurance" )
+
+person_with_summary_inrange_indexdate_creatnine <- read.csv("person_with_summary_inrange_indexdate_creatnine.csv")
+
+# Perform a left join to append the event_date to filtered_smoking based on person_id
+filtered_socioeconomic <- filtered_socioeconomic %>%
+  left_join(person_with_summary_inrange_indexdate_creatnine %>% select(person_id, index_date), by = "person_id")
+
+
+# Filter the data to exclude NA index_date and check if survey_datetime is before index_date
+socioeconomic_status_before_index_date <- filtered_socioeconomic %>%
+  filter(!is.na(index_date) & survey_datetime <= index_date) 
+
+
+filtered_person_with_summary <- read.csv("my_dataframe.csv")
+
+
+# Rename the `answer` column in `filtered_socioeconomic` to `socioeconomic_status` before the join
+socioeconomic_status_before_index_date <- socioeconomic_status_before_index_date %>%
+  rename(socioeconomic_status = answer)
+
+# Perform the left join to append the `socioeconomic_status` column based on `person_id`
+filtered_person_with_summary <- filtered_person_with_summary %>%
+  left_join(socioeconomic_status_before_index_date %>% select(person_id, socioeconomic_status), by = "person_id")
+
+
+# Update code to include NA handling in Health Insurance Yes and No columns
+filtered_person_with_summary <- filtered_person_with_summary %>%
+  mutate(
+    Health_Insurance_Yes = ifelse(socioeconomic_status == "Health Insurance: Yes", 1, 0),
+    Health_Insurance_No = ifelse(socioeconomic_status == "Health Insurance: No", 1, 0),
+    unknown_if_insured = ifelse(is.na(socioeconomic_status), 1, 0)
+  ) %>%
+  replace_na(list(Health_Insurance_Yes = 0, Health_Insurance_No = 0)) %>%
+  select(-socioeconomic_status)  # Remove the socioeconomic_status column
+
+# Save the filtered_person_with_summary dataframe as refiltered_person_with_summary.csv
+write.csv(filtered_person_with_summary, file = "my_dataframe_insured.csv", row.names = FALSE)
+
+```
+
+## Routine health visit
+
+Health care access and utilization: Is there a place that you USUALLY go to when you are sick or need advice about your health?
+
+```{r}
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "followup_cohort_data" for domain "person" and was generated for All of Us Controlled Tier Dataset v7
+dataset_75381023_person_sql <- paste("
+    SELECT
+        person.person_id,
+        p_gender_concept.concept_name as gender,
+        person.birth_datetime as date_of_birth,
+        p_race_concept.concept_name as race,
+        p_ethnicity_concept.concept_name as ethnicity,
+        p_sex_at_birth_concept.concept_name as sex_at_birth 
+    FROM
+        `person` person 
+    LEFT JOIN
+        `concept` p_gender_concept 
+            ON person.gender_concept_id = p_gender_concept.concept_id 
+    LEFT JOIN
+        `concept` p_race_concept 
+            ON person.race_concept_id = p_race_concept.concept_id 
+    LEFT JOIN
+        `concept` p_ethnicity_concept 
+            ON person.ethnicity_concept_id = p_ethnicity_concept.concept_id 
+    LEFT JOIN
+        `concept` p_sex_at_birth_concept 
+            ON person.sex_at_birth_concept_id = p_sex_at_birth_concept.concept_id  
+    WHERE
+        person.PERSON_ID IN (SELECT
+            distinct person_id  
+        FROM
+            `cb_search_person` cb_search_person  
+        WHERE
+            cb_search_person.person_id IN (SELECT
+                person_id 
+            FROM
+                `person` p 
+            WHERE
+                race_concept_id IN (8527, 8516, 2100000001, 8515, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) 
+            AND cb_search_person.person_id IN (SELECT
+                criteria.person_id 
+            FROM
+                (SELECT
+                    DISTINCT person_id, entry_date, concept_id 
+                FROM
+                    `cb_search_all_events` 
+                WHERE
+                    (concept_id IN (43530593) 
+                    AND is_standard = 0  
+                    AND  value_source_concept_id IN (43528645) 
+                    OR  concept_id IN (43530593) 
+                    AND is_standard = 0  
+                    AND  value_source_concept_id IN (43529948) 
+                    OR  concept_id IN (43530593) 
+                    AND is_standard = 0  
+                    AND  value_source_concept_id IN (43528803))) criteria ) 
+            AND cb_search_person.person_id NOT IN (SELECT
+                criteria.person_id 
+            FROM
+                (SELECT
+                    DISTINCT person_id, entry_date, concept_id 
+                FROM
+                    `cb_search_all_events` 
+                WHERE
+                    (concept_id IN(SELECT
+                        DISTINCT c.concept_id 
+                    FROM
+                        `cb_criteria` c 
+                    JOIN
+                        (SELECT
+                            CAST(cr.id as string) AS id       
+                        FROM
+                            `cb_criteria` cr       
+                        WHERE
+                            concept_id IN (440508)       
+                            AND full_text LIKE '%_rank1]%'      ) a 
+                            ON (c.path LIKE CONCAT('%.', a.id, '.%') 
+                            OR c.path LIKE CONCAT('%.', a.id) 
+                            OR c.path LIKE CONCAT(a.id, '.%') 
+                            OR c.path = a.id) 
+                    WHERE
+                        is_standard = 1 
+                        AND is_selectable = 1) 
+                    AND is_standard = 1 )) criteria ) 
+            AND cb_search_person.person_id NOT IN (SELECT
+                person_id 
+            FROM
+                `person` p 
+            WHERE
+                race_concept_id IN (2100000001, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+person_75381023_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "person_75381023",
+  "person_75381023_*.csv")
+message(str_glue('The data will be written to {person_75381023_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_75381023_person_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  person_75381023_path,
+  destination_format = "CSV")
+
+
+# Read the data directly from Cloud Storage into memory.
+# NOTE: Alternatively you can `gsutil -m cp {person_75381023_path}` to copy these files
+#       to the Jupyter disk.
+read_bq_export_from_workspace_bucket <- function(export_path) {
+  col_types <- cols(gender = col_character(), race = col_character(), ethnicity = col_character(), sex_at_birth = col_character())
+  bind_rows(
+    map(system2('gsutil', args = c('ls', export_path), stdout = TRUE, stderr = TRUE),
+        function(csv) {
+          message(str_glue('Loading {csv}.'))
+          chunk <- read_csv(pipe(str_glue('gsutil cat {csv}')), col_types = col_types, show_col_types = FALSE)
+          if (is.null(col_types)) {
+            col_types <- spec(chunk)
+          }
+          chunk
+        }))
+}
+dataset_75381023_person_df <- read_bq_export_from_workspace_bucket(person_75381023_path)
+
+dim(dataset_75381023_person_df)
+
+head(dataset_75381023_person_df, 5)
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "followup_cohort_data" for domain "survey" and was generated for All of Us Controlled Tier Dataset v7
+dataset_75381023_survey_sql <- paste("
+    SELECT
+        answer.person_id,
+        answer.survey_datetime,
+        answer.survey,
+        answer.question_concept_id,
+        answer.question,
+        answer.answer_concept_id,
+        answer.answer,
+        answer.survey_version_concept_id,
+        answer.survey_version_name  
+    FROM
+        `ds_survey` answer   
+    WHERE
+        (
+            question_concept_id IN (SELECT
+                DISTINCT concept_id                         
+            FROM
+                `cb_criteria` c                         
+            JOIN
+                (SELECT
+                    CAST(cr.id as string) AS id                               
+                FROM
+                    `cb_criteria` cr                               
+                WHERE
+                    concept_id IN (43528895)                               
+                    AND domain_id = 'SURVEY') a 
+                    ON (c.path like CONCAT('%', a.id, '.%'))                         
+            WHERE
+                domain_id = 'SURVEY'                         
+                AND type = 'PPI'                         
+                AND subtype = 'QUESTION')
+        )  
+        AND (
+            answer.PERSON_ID IN (SELECT
+                distinct person_id  
+            FROM
+                `cb_search_person` cb_search_person  
+            WHERE
+                cb_search_person.person_id IN (SELECT
+                    person_id 
+                FROM
+                    `person` p 
+                WHERE
+                    race_concept_id IN (8527, 8516, 2100000001, 8515, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) 
+                AND cb_search_person.person_id IN (SELECT
+                    criteria.person_id 
+                FROM
+                    (SELECT
+                        DISTINCT person_id, entry_date, concept_id 
+                    FROM
+                        `cb_search_all_events` 
+                    WHERE
+                        (concept_id IN (43530593) 
+                        AND is_standard = 0  
+                        AND  value_source_concept_id IN (43528645) 
+                        OR  concept_id IN (43530593) 
+                        AND is_standard = 0  
+                        AND  value_source_concept_id IN (43529948) 
+                        OR  concept_id IN (43530593) 
+                        AND is_standard = 0  
+                        AND  value_source_concept_id IN (43528803))) criteria ) 
+                AND cb_search_person.person_id NOT IN (SELECT
+                    criteria.person_id 
+                FROM
+                    (SELECT
+                        DISTINCT person_id, entry_date, concept_id 
+                    FROM
+                        `cb_search_all_events` 
+                    WHERE
+                        (concept_id IN(SELECT
+                            DISTINCT c.concept_id 
+                        FROM
+                            `cb_criteria` c 
+                        JOIN
+                            (SELECT
+                                CAST(cr.id as string) AS id       
+                            FROM
+                                `cb_criteria` cr       
+                            WHERE
+                                concept_id IN (440508)       
+                                AND full_text LIKE '%_rank1]%'      ) a 
+                                ON (c.path LIKE CONCAT('%.', a.id, '.%') 
+                                OR c.path LIKE CONCAT('%.', a.id) 
+                                OR c.path LIKE CONCAT(a.id, '.%') 
+                                OR c.path = a.id) 
+                        WHERE
+                            is_standard = 1 
+                            AND is_selectable = 1) 
+                        AND is_standard = 1 )) criteria ) 
+                AND cb_search_person.person_id NOT IN (SELECT
+                    person_id 
+                FROM
+                    `person` p 
+                WHERE
+                    race_concept_id IN (2100000001, 903096, 2000000008, 45882607, 1177221, 38003615, 8557) ) )
+        )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+survey_75381023_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "survey_75381023",
+  "survey_75381023_*.csv")
+message(str_glue('The data will be written to {survey_75381023_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_75381023_survey_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  survey_75381023_path,
+  destination_format = "CSV")
+
+
+# Read the data directly from Cloud Storage into memory.
+# NOTE: Alternatively you can `gsutil -m cp {survey_75381023_path}` to copy these files
+#       to the Jupyter disk.
+read_bq_export_from_workspace_bucket <- function(export_path) {
+  col_types <- cols(survey = col_character(), question = col_character(), answer = col_character(), survey_version_name = col_character())
+  bind_rows(
+    map(system2('gsutil', args = c('ls', export_path), stdout = TRUE, stderr = TRUE),
+        function(csv) {
+          message(str_glue('Loading {csv}.'))
+          chunk <- read_csv(pipe(str_glue('gsutil cat {csv}')), col_types = col_types, show_col_types = FALSE)
+          if (is.null(col_types)) {
+            col_types <- spec(chunk)
+          }
+          chunk
+        }))
+}
+dataset_75381023_survey_df <- read_bq_export_from_workspace_bucket(survey_75381023_path)
+
+dim(dataset_75381023_survey_df)
+
+head(dataset_75381023_survey_df, 5)
+```
+
+Data wrangling
+
+```{r}
+socioeconomic <- dataset_75381023_survey_df
+person <- dataset_75381023_person_df
+
+# Alternatively, using dplyr
+filtered_socioeconomic <- socioeconomic %>%
+  filter(question == "Health Advice: What Kind Of Place" )
+
+person_with_summary_inrange_indexdate_creatnine <- read.csv("person_with_summary_inrange_indexdate_creatnine.csv")
+
+# Perform a left join to append the event_date to filtered_smoking based on person_id
+filtered_socioeconomic <- filtered_socioeconomic %>%
+  left_join(person_with_summary_inrange_indexdate_creatnine %>% select(person_id, index_date), by = "person_id")
+
+
+# Filter the data to exclude NA index_date and check if survey_datetime is before index_date
+socioeconomic_status_before_index_date <- filtered_socioeconomic %>%
+  filter(!is.na(index_date) & survey_datetime <= index_date) 
+
+
+filtered_person_with_summary <- read.csv("my_dataframe_insured.csv")
+
+
+# Rename the `answer` column in `filtered_socioeconomic` to `socioeconomic_status` before the join
+socioeconomic_status_before_index_date <- socioeconomic_status_before_index_date %>%
+  rename(socioeconomic_status = answer)
+
+# Perform the left join to append the `socioeconomic_status` column based on `person_id`
+filtered_person_with_summary <- filtered_person_with_summary %>%
+  left_join(socioeconomic_status_before_index_date %>% select(person_id, socioeconomic_status), by = "person_id")
+
+
+# Create new categorical variables based on insurance status conditions and remove the original column
+filtered_person_with_summary <- filtered_person_with_summary %>%
+  mutate(
+    Uses_only_Urgent_care = ifelse(socioeconomic_status == "What Kind Of Place: Urgent Care"   , 1, 0),
+    Uses_only_Doctors_office = ifelse(socioeconomic_status == "What Kind Of Place: Doctors Office", 1, 0),
+    Uses_only_Emergency_room = ifelse(socioeconomic_status == "What Kind Of Place: Emergency Room", 1, 0),
+    Unknown_Routine_Health_Visit = ifelse(is.na(socioeconomic_status), 1, 0)
+  ) %>%
+  replace_na(list(Uses_only_Urgent_care = 0, Uses_only_Doctors_office = 0, Uses_only_Emergency_room = 0)) %>%
+  select(-socioeconomic_status)  # Remove the socioeconomic_status column
+
+
+# Save the filtered_person_with_summary dataframe as refiltered_person_with_summary.csv
+write.csv(filtered_person_with_summary, file = "my_dataframe_insured_routinehealth.csv", row.names = FALSE)
+
+```
+
+# Cox Model
+
+###### Multicolinearity check
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(corrr)
+library(knitr)
+library(kableExtra)
+
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth.csv")
+
+# Step 1: Ensure that only numeric columns with variance are checked for correlation
+filtered_data_no_constant <- my_dataframe %>%
+  select(-person_id, -disease_status) %>%
+  select(where(is.numeric)) %>%  # Ensure we are only dealing with numeric columns
+  select_if(~ sd(., na.rm = TRUE) > 0)  # Ensure non-zero standard deviation
+
+# Step 2: Calculate the correlation matrix for the filtered dataset
+correlation_matrix <- filtered_data_no_constant %>%
+  correlate(method = "pearson", use = "pairwise.complete.obs")
+
+# Step 3: Identify pairs of variables with high correlations (e.g., |correlation| > 0.7)
+highly_correlated_pairs <- correlation_matrix %>%
+  stretch() %>%  # Convert the correlation matrix into a long format
+  filter(abs(r) > 0.7, r != 1) %>%  # Keep only pairs with |correlation| > 0.7 and not self-correlation
+  mutate(pair = paste(pmin(x, y), pmax(x, y), sep = "_")) %>%  # Create a unique identifier for pairs
+  distinct(pair, .keep_all = TRUE) %>%  # Remove duplicates (e.g., (x,y) and (y,x))
+  select(-pair)  # Remove the auxiliary 'pair' column
+
+# Step 4: Prepare the table for the number of observations for each correlated pair
+if (nrow(highly_correlated_pairs) > 0) {
+  result_table <- data.frame(
+    `Variable 1` = character(),
+    `Variable 2` = character(),
+    `Correlation` = numeric(),
+    `Cases (Var 1)` = integer(),
+    `Controls (Var 1)` = integer(),
+    `Cases (Var 2)` = integer(),
+    `Controls (Var 2)` = integer(),
+    stringsAsFactors = FALSE
+  )
+  
+  for (i in 1:nrow(highly_correlated_pairs)) {
+    var1 <- highly_correlated_pairs$x[i]
+    var2 <- highly_correlated_pairs$y[i]
+    correlation <- highly_correlated_pairs$r[i]
+    
+    # Number of non-zero cases (disease_status == 1) and non-zero controls (disease_status == 0) for var1
+    cases_var1 <- sum(my_dataframe$disease_status == 1 & 
+                      my_dataframe[[var1]] != 0 & !is.na(my_dataframe[[var1]]))
+    controls_var1 <- sum(my_dataframe$disease_status == 0 & 
+                         my_dataframe[[var1]] != 0 & !is.na(my_dataframe[[var1]]))
+    
+    # Number of non-zero cases (disease_status == 1) and non-zero controls (disease_status == 0) for var2
+    cases_var2 <- sum(my_dataframe$disease_status == 1 & 
+                      my_dataframe[[var2]] != 0 & !is.na(my_dataframe[[var2]]))
+    controls_var2 <- sum(my_dataframe$disease_status == 0 & 
+                         my_dataframe[[var2]] != 0 & !is.na(my_dataframe[[var2]]))
+    
+    # Add the results to the table
+    result_table <- rbind(result_table, data.frame(
+      `Variable 1` = var1,
+      `Variable 2` = var2,
+      `Correlation` = round(correlation, 2),  # Round correlation to 2 decimal places
+      `Cases (Var 1)` = cases_var1,
+      `Controls (Var 1)` = controls_var1,
+      `Cases (Var 2)` = cases_var2,
+      `Controls (Var 2)` = controls_var2
+    ))
+  }
+  
+  # Print the result table with formatting for publication
+  print(result_table)
+} else {
+  cat("No highly correlated variable pairs found (|correlation| > 0.7).\n")
+}
+
+# Print the column names of the original dataset
+print(colnames(my_dataframe))
+
+```
+
+##### Data preprocessing
+
+```{r}
+library(dplyr)
+library(knitr) # For kable to display tables nicely
+
+# # Load the dataset
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth.csv")
+
+colnames(my_dataframe)
+# Filter `my_dataframe` to include only observations with a positive `time_to_event`
+my_dataframe <- my_dataframe %>% 
+  filter(time_to_event > 0)
+
+# Define the columns to remove
+col_remove <- c(
+  'gender',
+  'person_id',
+  'date_of_birth',
+  'index_date',
+  'censored_date',
+  'event_date', 
+  'age_reported',
+  'disease_date', 
+  'Nephrectomy','
+  Hemodialysis',
+  "Acute.glomerulonephritis",
+  "height",
+  "weight", 
+  "Nephritic.syndrome", 
+  "Peripheral.circulatory.disorder.due.to.type.1.diabetes.mellitus", 
+  "Complication.of.renal.dialysis", 
+  "Membranous.glomerulonephritis", 
+  "doxercalciferol", 
+  "midodrine", 
+  "Iron.saturation..Mass.Fraction..in.Serum.or.Plasma", 
+  "Iron.binding.capacity..Mass.volume..in.Serum.or.Plasma", 
+  "highest_smoking_status_rank", 
+  "insulin.aspart..human", 
+  "Ketoacidosis.due.to.type.1.diabetes.mellitus", 
+  "Systemic.lupus.erythematosus", 
+  "Ferritin..Mass.volume..in.Serum.or.Plasma", 
+  "Hypertensive.heart.and.chronic.kidney.disease", 
+  "eGFR_MDRD", "eGFR_ckd_epi_2009", 
+  "Glomerular.filtration.rate.1.73.sq.M.predicted..Volume.Rate.Area..in.Serum..Plasma.or.Blood.by.Creatinine.based.formula..MDRD.", 
+  "Transplanted.kidney.present", 
+  "Acute.renal.failure.syndrome",
+  "unknown_if_insured",
+  "Unknown_Routine_Health_Visit"
+)
+
+# Remove specified columns from my_dataframe
+my_dataframe <- my_dataframe[, !(names(my_dataframe) %in% col_remove)]
+
+# Check if `person_id` is available for merging; if not, use rownames
+if (!"person_id" %in% colnames(my_dataframe)) {
+  my_dataframe <- my_dataframe %>% mutate(person_id = row_number())
+}
+
+# Separate data by race for custom sampling
+black_data <- my_dataframe %>% filter(race == "Black or African American")
+white_data <- my_dataframe %>% filter(race == "White")
+asian_data <- my_dataframe %>% filter(race == "Asian")
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Sample 70% of Black or African American and White for training data
+black_train <- black_data %>% sample_frac(0.7)
+white_train <- white_data %>% sample_frac(0.7)
+
+# The remaining 30% of Black or African American and White for test data
+black_test <- anti_join(black_data, black_train, by = "person_id")
+white_test <- anti_join(white_data, white_train, by = "person_id")
+
+# All Asian individuals go into the test set
+asian_test <- asian_data
+
+# Combine training data
+train_data <- bind_rows(black_train, white_train) %>%
+  mutate(raceAsian = 0)  # Add dummy variable raceAsian with 0 for all rows in train data
+
+# Combine test data and add `raceAsian` column for consistency
+test_data <- bind_rows(black_test, white_test, asian_test) %>%
+  mutate(raceAsian = if_else(race == "Asian", 1, 0))
+
+# Calculate race proportions for train and test sets, ensuring all races are represented
+train_race_proportion <- prop.table(table(factor(train_data$race, levels = c("Black or African American", "White", "Asian")))) * 100
+test_race_proportion <- prop.table(table(factor(test_data$race, levels = c("Black or African American", "White", "Asian")))) * 100
+
+# Create a summary table for race proportions
+race_proportion_table <- data.frame(
+  Race = c("Black or African American", "White", "Asian"),
+  Train_Proportion = round(as.numeric(train_race_proportion), 1),
+  Test_Proportion = round(as.numeric(test_race_proportion), 1)
+)
+
+# Calculate race counts for train and test sets, ensuring all races are represented
+train_race_counts <- table(factor(train_data$race, levels = c("Black or African American", "White", "Asian")))
+test_race_counts <- table(factor(test_data$race, levels = c("Black or African American", "White", "Asian")))
+
+# Create a summary table for race counts
+race_count_table <- data.frame(
+  Race = c("Black or African American", "White", "Asian"),
+  Train_Count = as.numeric(train_race_counts),
+  Test_Count = as.numeric(test_race_counts)
+)
+
+# Print the table
+print(race_count_table)
+
+
+# Calculate dimensions for train and test sets
+dimension_table <- data.frame(
+  Set = c("Train", "Test"),
+  Rows = c(nrow(train_data), nrow(test_data)),
+  Columns = c(ncol(train_data), ncol(test_data))
+)
+
+# Display the tables
+cat("Race Proportion Table:\n")
+print(kable(race_proportion_table, format = "markdown"))
+
+cat("\nDimension Table:\n")
+print(kable(dimension_table, format = "markdown"))
+
+
+```
+
+Variable selection: Lasso
+
+```{r}
+# colnames(train_data)
+# # Load necessary libraries
+# library(survival)
+# library(ggplot2)
+# library(dplyr)
+# 
+# # Step 1: Define the formula for the Cox model using all available variables
+# # This assumes "time_to_event" is the time variable and "disease_status" as the event indicator.
+# # Adjust the formula by removing or modifying variable names if necessary.
+# 
+# # Define the lab-free variables as a vector of column names
+# cox_formula_lab_free <- c(
+#   "disease_status",
+#   "race",
+#   "sex_at_birth",
+#   "ethnicity",
+#   "Acidosis",
+#   "Acute.renal.failure.syndrome",
+#   "Anemia",
+#   "Anemia.in.chronic.kidney.disease",
+#   "Atherosclerosis.of.coronary.artery.without.angina.pectoris",
+#   "BMI",
+#   "Chronic.kidney.disease.stage.3",
+#   "Chronic.kidney.disease.stage.4",
+#   "Congestive.heart.failure",
+#   "Creatinine..Mass.volume..in.Body.fluid",
+#   "Diabetes.mellitus",
+#   "Disorder.of.kidney.and.or.ureter",
+#   "Disorder.of.muscle",
+#   "Erythrocyte.distribution.width..Ratio..by.Automated.count",
+#   "Essential.hypertension",
+#   "Gout",
+#   "Hemoglobin.A1c.Hemoglobin.total.in.Blood",
+#   "Hepatitis.B.virus.surface.Ag..Presence..in.Serum.or.Plasma.by.Immunoassay",
+#   "Hyperkalemia",
+#   "Hypothyroidism",
+#   "Iron..Mass.volume..in.Serum.or.Plasma",
+#   "Iron.deficiency.anemia",
+#   "Parathyrin.intact..Mass.volume..in.Serum.or.Plasma",
+#   "Peripheral.vascular.disease",
+#   "Polyneuropathy.due.to.diabetes.mellitus",
+#   "Protein..Mass.volume..in.Urine",
+#   "Proteinuria",
+#   "Renal.disorder.due.to.type.2.diabetes.mellitus",
+#   "Systolic.blood.pressure",
+#   "Transplanted.kidney.present",
+#   "Triglyceride..Mass.volume..in.Serum.or.Plasma",
+#   "Type.2.diabetes.mellitus",
+#   "age_precise",
+#   "eGFR_ckd_epi_2021",
+#   "serum_creatinine",
+#   "smoking",
+#   "time_to_event",
+#   "person_id"
+# )
+# 
+# 
+# # # Define lab-free variables excluding lab-related variables
+# # cox_formula_lab_free <- c(
+# #   "disease_status",
+# #   "race",
+# #   "sex_at_birth",
+# #   "ethnicity",
+# #   "Acidosis",
+# #   "Acute.renal.failure.syndrome",
+# #   "Anemia",
+# #   "Anemia.in.chronic.kidney.disease",
+# #   "Atherosclerosis.of.coronary.artery.without.angina.pectoris",
+# #   "BMI",
+# #   "Chronic.kidney.disease.stage.3",
+# #   "Chronic.kidney.disease.stage.4",
+# #   "Congestive.heart.failure",
+# #   "Diabetes.mellitus",
+# #   "Disorder.of.kidney.and.or.ureter",
+# #   "Disorder.of.muscle",
+# #   "Essential.hypertension",
+# #   "Gout",
+# #   "Hypothyroidism",
+# #   "Iron.deficiency.anemia",
+# #   "Peripheral.vascular.disease",
+# #   "Polyneuropathy.due.to.diabetes.mellitus",
+# #   "Proteinuria",
+# #   "Renal.disorder.due.to.type.2.diabetes.mellitus",
+# #   "Systolic.blood.pressure",
+# #   "Transplanted.kidney.present",
+# #   "Type.2.diabetes.mellitus",
+# #   "age_precise",
+# #   "smoking",
+# #   "time_to_event",
+# #   "person_id",
+# #   "raceAsian"
+# # )
+# 
+# 
+# # Load necessary libraries
+# library(survival)
+# library(glmnet)
+# library(dplyr)
+# library(ggplot2)
+# 
+# # Step 1: Define lab-free formula and filter complete cases
+# cox_formula <- as.formula(paste("~", paste(cox_formula_lab_free, collapse = " + ")))
+# 
+# # Filter the data to include only rows with complete cases for relevant variables
+# relevant_columns <- c("time_to_event", "disease_status", cox_formula_lab_free)
+# train_data_filtered <- train_data %>%
+#   select(all_of(relevant_columns)) %>%
+#   drop_na()
+# 
+# # Step 2: Restrict the time-to-event to 5 years (1825 days) to reduce censoring
+# train_data_filtered <- train_data_filtered %>%
+#   filter(time_to_event <= 1825)
+# 
+# # Re-prepare X and y after filtering
+# X <- model.matrix(cox_formula, data = train_data_filtered)[, -1]  # Remove intercept column
+# y <- Surv(train_data_filtered$time_to_event, train_data_filtered$disease_status)  # Define survival response
+# 
+# # Step 3: Use cross-validation with a higher starting lambda and Elastic Net (alpha = 0.5)
+# tryCatch({
+#   cv_fit <- cv.glmnet(X, y, family = "cox", alpha = 0, lambda = seq(0.1, 0.001, length = 100), maxit = 1e6)
+#   best_lambda <- cv_fit$lambda.min
+#   
+#   # Step 4: Refit the penalized Cox model with the optimal lambda from cross-validation
+#   penalized_cox_model <- glmnet(X, y, family = "cox", alpha = 0, lambda = best_lambda, maxit = 1e6)
+# 
+#   # Step 5: Extract non-zero coefficients
+#   non_zero_coefs <- coef(penalized_cox_model, s = best_lambda)
+#   non_zero_coefs <- non_zero_coefs[non_zero_coefs != 0]
+# 
+#   # Check if there are any non-zero coefficients before proceeding
+#   if (length(non_zero_coefs) > 0) {
+#     # Create a data frame of variable importance
+#     var_importance <- data.frame(
+#       Variable = rownames(non_zero_coefs),
+#       Importance = abs(as.vector(non_zero_coefs))  # Convert to vector for plotting
+#     ) %>%
+#       arrange(desc(Importance))
+# 
+#     # Step 6: Plot Variable Importance
+#     ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+#       geom_bar(stat = "identity", fill = "steelblue") +
+#       coord_flip() +
+#       labs(title = "Variable Importance in Penalized Cox Model (Elastic Net)", x = "Variables", y = "Absolute Coefficient Estimate") +
+#       theme_minimal()
+#   } else {
+#     cat("No non-zero coefficients were found. Consider further adjusting lambda or simplifying the model.\n")
+#   }
+# }, error = function(e) {
+#   cat("Elastic Net failed. Trying Ridge Regression as an alternative.\n")
+# 
+#   # Step 3 (Alternative): Ridge regression if Elastic Net fails
+#   penalized_cox_model <- glmnet(X, y, family = "cox", alpha = 0, maxit = 1e6)
+# 
+#   # Extract non-zero coefficients for Ridge
+#   non_zero_coefs <- coef(penalized_cox_model, s = 0.1)
+#   non_zero_coefs <- non_zero_coefs[non_zero_coefs != 0]
+# 
+#   # Check if there are any non-zero coefficients before proceeding
+#   if (length(non_zero_coefs) > 0) {
+#     var_importance <- data.frame(
+#       Variable = rownames(non_zero_coefs),
+#       Importance = abs(as.vector(non_zero_coefs))
+#     ) %>%
+#       arrange(desc(Importance))
+# 
+#     ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+#       geom_bar(stat = "identity", fill = "steelblue") +
+#       coord_flip() +
+#       labs(title = "Variable Importance in Penalized Cox Model (Ridge Regression)", x = "Variables", y = "Absolute Coefficient Estimate") +
+#       theme_minimal()
+#   } else {
+#     cat("No non-zero coefficients were found in Ridge model. Further adjustments may be necessary.\n")
+#   }
+# })
+
+```
+
+###### One variable cox: train data
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(survival)
+
+# Replace all NA values in train_data with 0
+train_data[is.na(train_data)] <- 0
+
+# Verify that there are no NA values left in the dataset
+print(sum(is.na(train_data)))  # This should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome and ID)
+predictor_vars <- setdiff(names(train_data), c("time_to_event", "disease_status", "person_id", "race"))
+
+# Convert numeric variables to log(x + 1) and binary variables to factors
+train_data <- train_data %>%
+  mutate(across(all_of(predictor_vars), ~ {
+    if (is.numeric(.)) {
+      log(. + 1)  # Apply log(x + 1) transformation for numeric predictors
+    } else if (n_distinct(.) == 2) {
+      as.factor(.)  # Convert binary variables to factors
+    } else {
+      .  # Leave other types as is
+    }
+  }))
+
+# Initialize an empty data frame to store results
+cox_results <- data.frame(Variable = character(),
+                          p_value = numeric(),
+                          Significance = character(),
+                          stringsAsFactors = FALSE)
+
+# Run Cox PH model for each variable individually
+for (var in predictor_vars) {
+  # Check that the variable is either numeric or factor
+  if (is.numeric(train_data[[var]]) || is.factor(train_data[[var]])) {
+    # Fit Cox model with one variable at a time
+    cox_model <- coxph(Surv(time_to_event, disease_status) ~ get(var), data = train_data)
+    
+    # Get the p-value
+    p_val <- summary(cox_model)$coefficients[,"Pr(>|z|)"]
+    
+    # Check if p-value < 0.25 and mark it with an asterisk if true
+    signif <- ifelse(p_val < 0.25, "*", "")
+    
+    # Append results to the results data frame
+    cox_results <- rbind(cox_results, data.frame(Variable = var, 
+                                                 p_value = p_val, 
+                                                 Significance = signif))
+  } else {
+    message(paste("Skipping variable:", var, "- not numeric or factor."))
+  }
+}
+
+# Arrange results by p-value and print the most significant first
+cox_results <- cox_results %>% arrange(p_value)
+
+# Print the sorted results table with most significant variables first
+print(cox_results)
+
+```
+
+### Race specific Model fitting on 70% of data
+
+```{r}
+library(ggplot2)
+# Complete case
+my_dataframe <- train_data
+
+# Assuming `outcome` column has 1 for cases and 0 for controls
+case_control_counts <- train_data %>%
+  group_by(race, disease_status) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+# Print the counts
+print(case_control_counts)
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(tibble)  # for rownames_to_column
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(ggplot2)
+library(pec)
+library(tibble)
+
+
+
+# Replace all NA values in train_data with 0
+train_data[is.na(train_data)] <- 0
+
+# Verify that there are no NA values left in the dataset
+print(sum(is.na(train_data)))  # This should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome and ID)
+predictor_vars <- setdiff(names(train_data), c("time_to_event", "disease_status", "person_id"))
+
+# Convert numeric variables to log(x + 1) and binary variables to factors
+train_data <- train_data %>%
+  mutate(across(all_of(predictor_vars), ~ {
+    if (is.numeric(.)) {
+      log(. + 1)  # Apply log(x + 1) transformation for numeric predictors
+    } else if (n_distinct(.) == 2) {
+      as.factor(.)  # Convert binary variables to factors
+    } else {
+      .  # Leave other types as is
+    }
+  }))
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 2  # Truncation at year 5
+threshold <- 500  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- my_dataframe
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  dplyr::select(
+    Health_Insurance_Yes,
+    Health_Insurance_No,
+    Uses_only_Urgent_care,
+    Uses_only_Doctors_office,
+    Uses_only_Emergency_room,
+    race,
+    sex_at_birth,
+    raceBlack,
+    raceWhite,
+    raceAsian,
+    ethnicity,
+    Acidosis,
+    Anemia,
+    Anemia.in.chronic.kidney.disease,
+    Atherosclerosis.of.coronary.artery.without.angina.pectoris,
+    BMI,
+    Chronic.kidney.disease.stage.3,
+    Chronic.kidney.disease.stage.4,
+    Congestive.heart.failure,
+    Creatinine..Mass.volume..in.Body.fluid,
+    Diabetes.mellitus,
+    Disorder.of.kidney.and.or.ureter,
+    Disorder.of.muscle,
+    Erythrocyte.distribution.width..Ratio..by.Automated.count,
+    Essential.hypertension,
+    Gout,
+    Hemoglobin.A1c.Hemoglobin.total.in.Blood,
+    Hepatitis.B.virus.surface.Ag..Presence..in.Serum.or.Plasma.by.Immunoassay,
+    Hyperkalemia,
+    Hypothyroidism,
+    Iron..Mass.volume..in.Serum.or.Plasma,
+    Iron.deficiency.anemia,
+    Parathyrin.intact..Mass.volume..in.Serum.or.Plasma,
+    Peripheral.vascular.disease,
+    Polyneuropathy.due.to.diabetes.mellitus,
+    Protein..Mass.volume..in.Urine,
+    Proteinuria,
+    Renal.disorder.due.to.type.2.diabetes.mellitus,
+    Systolic.blood.pressure,
+    Triglyceride..Mass.volume..in.Serum.or.Plasma,
+    Type.2.diabetes.mellitus,
+    age_precise,
+    eGFR_ckd_epi_2021,
+    serum_creatinine,
+    smoking,
+    time_to_event_2,
+    outcome
+  )
+
+# Step 4: Split data by race
+dat_src <- df_filtered %>% filter(race %in% c('Black or African American', 'White'))
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+
+dd <- datadist(df_filtered)
+options(datadist = "dd")  # Set the datadist option for rms functions
+
+
+# Step 5: Define Cox model formula and fit model
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~", 
+                                paste(setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race")), collapse = " + ")))
+cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+# Extract coefficients, standard errors, z-scores, and p-values
+coef_values <- coef(cox_s)
+z_scores <- coef_values / sqrt(diag(cox_s$var))  # Calculate z-scores
+p_values <- 2 * (1 - pnorm(abs(z_scores)))       # Calculate p-values from z-scores
+significance <- ifelse(p_values < 0.05, "*", "") # Mark significant values with an asterisk
+
+# Create a data frame to summarize results
+signif_results <- data.frame(
+  Variable = names(coef_values),
+  Coefficient = coef_values,
+  `p-value` = p_values,
+  Significance = significance,
+  stringsAsFactors = FALSE
+)
+
+# # Print the summary table with significance asterisks
+print(signif_results)
+
+# Assuming cox_s model is already fitted
+cox_summary <- summary(cox_s)
+
+# Extract coefficients, standard errors, and p-values
+coef_values <- coef(cox_s)
+std_errors <- sqrt(diag(cox_s$var))
+z_scores <- coef_values / std_errors
+p_values <- 2 * (1 - pnorm(abs(z_scores))) # Calculate two-tailed p-values
+significance <- ifelse(p_values < 0.05, "*", "")  # Mark significance with an asterisk
+
+# Create a data frame to summarize results
+signif_results <- data.frame(
+  Variable = names(coef_values),
+  Coefficient = coef_values,
+  `p-value` = p_values,
+  Significance = significance,
+  stringsAsFactors = FALSE
+)
+
+# Print the summary table with significance asterisks
+print(signif_results)
+
+# Order by absolute coefficient values for variable importance
+var_importance <- signif_results %>%
+  arrange(desc(abs(Coefficient)))  # Use `Coefficient` column correctly
+
+# Plot Variable Importance
+ggplot(var_importance, aes(x = reorder(Variable, abs(Coefficient)), y = abs(Coefficient))) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Variable Importance in Cox Model", x = "Variables", y = "Absolute Coefficient Estimate") +
+  theme_minimal()
+
+
+# Step 6: Predictions and evaluation for each target group
+time_test <- seq(0, 1.5, 0.01)
+surv_s <- predictSurvProb(cox_s, newdata = dat_src, times = time_test)
+surv_t_black <- predictSurvProb(cox_s, newdata = dat_tar_black, times = time_test)
+surv_t_white <- predictSurvProb(cox_s, newdata = dat_tar_white, times = time_test)
+surv_t_asian <- predictSurvProb(cox_s, newdata = dat_tar_asian, times = time_test)
+
+# Prepare numeric matrices for the predictors in each target group using model.matrix()
+X_tar_black <- model.matrix(cox_formula, data = dat_tar_black)[, -1]  # Exclude intercept column
+X_tar_white <- model.matrix(cox_formula, data = dat_tar_white)[, -1]
+X_tar_asian <- model.matrix(cox_formula, data = dat_tar_asian)[, -1]
+
+# Evaluation using C-index
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(X_tar_black %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(X_tar_white %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(X_tar_asian %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+
+# Step 7: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+
+# Construct the Cox model equation as a string
+cox_equation <- paste0("h(t) = h0(t) * exp(", 
+                       paste(names(coef(cox_s)), round(coef(cox_s), 4), sep = " * ", collapse = " + "), 
+                       ")")
+
+# Print the Cox model equation
+cat("Cox Model Equation:\n", cox_equation, "\n")
+
+
+# Proportional Hazards Test
+cox_s_coxph <- coxph(cox_formula, data = dat_src)
+ph_test <- cox.zph(cox_s_coxph)
+ph_results <- as.data.frame(ph_test$table[, "p"])
+colnames(ph_results) <- "p_value"
+ph_results$Assumption <- ifelse(ph_results$p_value < 0.05, "Violated", "Holds")
+ph_results <- ph_results %>%
+  rownames_to_column("Variable") %>%
+  select(Variable, p_value, Assumption)
+print(ph_results)
+
+# Plot Schoenfeld residuals
+#plot(ph_test)
+
+# Clear datadist option after you are done
+options(datadist = NULL)
+
+```
+
+### Race free Model fitting on 70% of data
+
+```{r}
+library(ggplot2)
+# Complete case
+my_dataframe <- train_data
+
+# Assuming `outcome` column has 1 for cases and 0 for controls
+case_control_counts <- train_data %>%
+  group_by(race, disease_status) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+# Print the counts
+print(case_control_counts)
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(tibble)  # for rownames_to_column
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(ggplot2)
+library(pec)
+library(tibble)
+
+
+
+# Replace all NA values in train_data with 0
+train_data[is.na(train_data)] <- 0
+
+# Verify that there are no NA values left in the dataset
+print(sum(is.na(train_data)))  # This should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome and ID)
+predictor_vars <- setdiff(names(train_data), c("time_to_event", "disease_status", "person_id"))
+
+# Convert numeric variables to log(x + 1) and binary variables to factors
+train_data <- train_data %>%
+  mutate(across(all_of(predictor_vars), ~ {
+    if (is.numeric(.)) {
+      log(. + 1)  # Apply log(x + 1) transformation for numeric predictors
+    } else if (n_distinct(.) == 2) {
+      as.factor(.)  # Convert binary variables to factors
+    } else {
+      .  # Leave other types as is
+    }
+  }))
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 2  # Truncation at year 5
+threshold <- 500  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- my_dataframe
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  dplyr::select(
+    Health_Insurance_Yes,
+    Health_Insurance_No,
+    Uses_only_Urgent_care,
+    Uses_only_Doctors_office,
+    Uses_only_Emergency_room,
+    race,
+    sex_at_birth,
+    ethnicity,
+    Acidosis,
+    Anemia,
+    Anemia.in.chronic.kidney.disease,
+    Atherosclerosis.of.coronary.artery.without.angina.pectoris,
+    BMI,
+    Chronic.kidney.disease.stage.3,
+    Chronic.kidney.disease.stage.4,
+    Congestive.heart.failure,
+    Creatinine..Mass.volume..in.Body.fluid,
+    Diabetes.mellitus,
+    Disorder.of.kidney.and.or.ureter,
+    Disorder.of.muscle,
+    Erythrocyte.distribution.width..Ratio..by.Automated.count,
+    Essential.hypertension,
+    Gout,
+    Hemoglobin.A1c.Hemoglobin.total.in.Blood,
+    Hepatitis.B.virus.surface.Ag..Presence..in.Serum.or.Plasma.by.Immunoassay,
+    Hyperkalemia,
+    Hypothyroidism,
+    Iron..Mass.volume..in.Serum.or.Plasma,
+    Iron.deficiency.anemia,
+    Parathyrin.intact..Mass.volume..in.Serum.or.Plasma,
+    Peripheral.vascular.disease,
+    Polyneuropathy.due.to.diabetes.mellitus,
+    Protein..Mass.volume..in.Urine,
+    Proteinuria,
+    Renal.disorder.due.to.type.2.diabetes.mellitus,
+    Systolic.blood.pressure,
+    Triglyceride..Mass.volume..in.Serum.or.Plasma,
+    Type.2.diabetes.mellitus,
+    age_precise,
+    eGFR_ckd_epi_2021,
+    serum_creatinine,
+    smoking,
+    time_to_event_2,
+    outcome
+  )
+
+# Step 4: Split data by race
+dat_src <- df_filtered %>% filter(race %in% c('Black or African American', 'White'))
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+
+dd <- datadist(df_filtered)
+options(datadist = "dd")  # Set the datadist option for rms functions
+
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+
+# Step 5: Define Cox model formula and fit model
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~", 
+                                paste(setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race")), collapse = " + ")))
+cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+# Extract coefficients, standard errors, z-scores, and p-values
+coef_values <- coef(cox_s)
+std_errors <- sqrt(diag(cox_s$var))  # Standard errors for each coefficient
+z_scores <- coef_values / std_errors  # Calculate z-scores
+p_values <- 2 * (1 - pnorm(abs(z_scores)))  # Calculate two-tailed p-values
+significance <- ifelse(p_values < 0.05, "*", "")  # Mark significant values with an asterisk
+
+# Create a data frame to summarize results
+signif_results <- data.frame(
+  Variable = names(coef_values),
+  Coefficient = coef_values,
+  `p-value` = p_values,
+  Significance = significance,
+  stringsAsFactors = FALSE
+)
+
+# Print the summary table with significance asterisks
+print(signif_results)
+
+# Check if the 'Coefficient' column exists
+if ("Coefficient" %in% colnames(signif_results)) {
+  # Order by absolute coefficient values for variable importance
+  var_importance <- signif_results %>%
+    arrange(desc(abs(Coefficient)))  # Use `Coefficient` column correctly
+  
+  # Print the ordered variable importance table
+  print(var_importance)
+} else {
+  cat("Error: 'Coefficient' column not found in signif_results.")
+}
+
+
+# Plot Variable Importance
+ggplot(var_importance, aes(x = reorder(Variable, abs(Coefficient)), y = abs(Coefficient))) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Variable Importance in Cox Model", x = "Variables", y = "Absolute Coefficient Estimate") +
+  theme_minimal()
+
+
+# Step 6: Predictions and evaluation for each target group
+time_test <- seq(0, 1.5, 0.01)
+surv_s <- predictSurvProb(cox_s, newdata = dat_src, times = time_test)
+surv_t_black <- predictSurvProb(cox_s, newdata = dat_tar_black, times = time_test)
+surv_t_white <- predictSurvProb(cox_s, newdata = dat_tar_white, times = time_test)
+surv_t_asian <- predictSurvProb(cox_s, newdata = dat_tar_asian, times = time_test)
+
+# Prepare numeric matrices for the predictors in each target group using model.matrix()
+X_tar_black <- model.matrix(cox_formula, data = dat_tar_black)[, -1]  # Exclude intercept column
+X_tar_white <- model.matrix(cox_formula, data = dat_tar_white)[, -1]
+X_tar_asian <- model.matrix(cox_formula, data = dat_tar_asian)[, -1]
+
+# Evaluation using C-index
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(X_tar_black %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(X_tar_white %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(X_tar_asian %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+
+# Step 7: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+
+# Construct the Cox model equation as a string
+cox_equation <- paste0("h(t) = h0(t) * exp(", 
+                       paste(names(coef(cox_s)), round(coef(cox_s), 4), sep = " * ", collapse = " + "), 
+                       ")")
+
+# Print the Cox model equation
+cat("Cox Model Equation:\n", cox_equation, "\n")
+
+
+# Proportional Hazards Test
+cox_s_coxph <- coxph(cox_formula, data = dat_src)
+ph_test <- cox.zph(cox_s_coxph)
+ph_results <- as.data.frame(ph_test$table[, "p"])
+colnames(ph_results) <- "p_value"
+ph_results$Assumption <- ifelse(ph_results$p_value < 0.05, "Violated", "Holds")
+ph_results <- ph_results %>%
+  rownames_to_column("Variable") %>%
+  select(Variable, p_value, Assumption)
+print(ph_results)
+
+# Plot Schoenfeld residuals
+#plot(ph_test)
+
+# Clear datadist option after you are done
+options(datadist = NULL)
+
+```
+
+### Lab free Model fitting on 70% of data
+
+Removed the following: Creatinine..Mass.volume..in.Body.fluid Erythrocyte.distribution.width..Ratio..by.Automated.count Hemoglobin.A1c.Hemoglobin.total.in.Blood Hepatitis.B.virus.surface.Ag..Presence..in.Serum.or.Plasma.by.Immunoassay Hyperkalemia Iron..Mass.volume..in.Serum.or.Plasma Parathyrin.intact..Mass.volume..in.Serum.or.Plasma Protein..Mass.volume..in.Urine Triglyceride..Mass.volume..in.Serum.or.Plasma serum_creatinine eGFR_ckd_epi_2021
+
+```{r}
+library(ggplot2)
+# Complete case
+my_dataframe <- train_data
+
+# Assuming `outcome` column has 1 for cases and 0 for controls
+case_control_counts <- train_data %>%
+  group_by(race, disease_status) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+# Print the counts
+print(case_control_counts)
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(tibble)  # for rownames_to_column
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(ggplot2)
+library(pec)
+library(tibble)
+
+
+
+# Replace all NA values in train_data with 0
+train_data[is.na(train_data)] <- 0
+
+# Verify that there are no NA values left in the dataset
+print(sum(is.na(train_data)))  # This should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome and ID)
+predictor_vars <- setdiff(names(train_data), c("time_to_event", "disease_status", "person_id"))
+
+# Convert numeric variables to log(x + 1) and binary variables to factors
+train_data <- train_data %>%
+  mutate(across(all_of(predictor_vars), ~ {
+    if (is.numeric(.)) {
+      log(. + 1)  # Apply log(x + 1) transformation for numeric predictors
+    } else if (n_distinct(.) == 2) {
+      as.factor(.)  # Convert binary variables to factors
+    } else {
+      .  # Leave other types as is
+    }
+  }))
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 2  # Truncation at year 5
+threshold <- 500  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- my_dataframe
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns without lab-related variables
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  dplyr::select(
+    Health_Insurance_Yes,
+    Health_Insurance_No,
+    Uses_only_Urgent_care,
+    Uses_only_Doctors_office,
+    Uses_only_Emergency_room,
+    race,
+    sex_at_birth,
+    ethnicity,
+    Acidosis,
+    Anemia,
+    Anemia.in.chronic.kidney.disease,
+    Atherosclerosis.of.coronary.artery.without.angina.pectoris,
+    BMI,
+    Chronic.kidney.disease.stage.3,
+    Chronic.kidney.disease.stage.4,
+    Congestive.heart.failure,
+    Diabetes.mellitus,
+    Disorder.of.kidney.and.or.ureter,
+    Disorder.of.muscle,
+    Essential.hypertension,
+    Gout,
+    Hypothyroidism,
+    Iron.deficiency.anemia,
+    Peripheral.vascular.disease,
+    Polyneuropathy.due.to.diabetes.mellitus,
+    Proteinuria,
+    Renal.disorder.due.to.type.2.diabetes.mellitus,
+    Systolic.blood.pressure,
+    Type.2.diabetes.mellitus,
+    age_precise,
+    smoking,
+    time_to_event_2,
+    outcome
+  )
+
+
+# Step 4: Split data by race
+dat_src <- df_filtered %>% filter(race %in% c('Black or African American', 'White'))
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+
+dd <- datadist(df_filtered)
+options(datadist = "dd")  # Set the datadist option for rms functions
+
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+
+# Step 5: Define Cox model formula and fit model
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~", 
+                                paste(setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race")), collapse = " + ")))
+cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+# Extract coefficients, standard errors, z-scores, and p-values
+coef_values <- coef(cox_s)
+std_errors <- sqrt(diag(cox_s$var))  # Standard errors for each coefficient
+z_scores <- coef_values / std_errors  # Calculate z-scores
+p_values <- 2 * (1 - pnorm(abs(z_scores)))  # Calculate two-tailed p-values
+significance <- ifelse(p_values < 0.05, "*", "")  # Mark significant values with an asterisk
+
+# Create a data frame to summarize results
+signif_results <- data.frame(
+  Variable = names(coef_values),
+  Coefficient = coef_values,
+  `p-value` = p_values,
+  Significance = significance,
+  stringsAsFactors = FALSE
+)
+
+# Print the summary table with significance asterisks
+print(signif_results)
+
+# Check if the 'Coefficient' column exists
+if ("Coefficient" %in% colnames(signif_results)) {
+  # Order by absolute coefficient values for variable importance
+  var_importance <- signif_results %>%
+    arrange(desc(abs(Coefficient)))  # Use `Coefficient` column correctly
+  
+  # Print the ordered variable importance table
+  print(var_importance)
+} else {
+  cat("Error: 'Coefficient' column not found in signif_results.")
+}
+
+# Plot Variable Importance
+ggplot(var_importance, aes(x = reorder(Variable, abs(Coefficient)), y = abs(Coefficient))) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Variable Importance in Cox Model", x = "Variables", y = "Absolute Coefficient Estimate") +
+  theme_minimal()
+
+
+# Step 6: Predictions and evaluation for each target group
+time_test <- seq(0, 1.5, 0.01)
+surv_s <- predictSurvProb(cox_s, newdata = dat_src, times = time_test)
+surv_t_black <- predictSurvProb(cox_s, newdata = dat_tar_black, times = time_test)
+surv_t_white <- predictSurvProb(cox_s, newdata = dat_tar_white, times = time_test)
+surv_t_asian <- predictSurvProb(cox_s, newdata = dat_tar_asian, times = time_test)
+
+# Prepare numeric matrices for the predictors in each target group using model.matrix()
+X_tar_black <- model.matrix(cox_formula, data = dat_tar_black)[, -1]  # Exclude intercept column
+X_tar_white <- model.matrix(cox_formula, data = dat_tar_white)[, -1]
+X_tar_asian <- model.matrix(cox_formula, data = dat_tar_asian)[, -1]
+
+# Evaluation using C-index
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(X_tar_black %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(X_tar_white %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(X_tar_asian %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+
+# Step 7: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+
+# Construct the Cox model equation as a string
+cox_equation <- paste0("h(t) = h0(t) * exp(", 
+                       paste(names(coef(cox_s)), round(coef(cox_s), 4), sep = " * ", collapse = " + "), 
+                       ")")
+
+# Print the Cox model equation
+cat("Cox Model Equation:\n", cox_equation, "\n")
+
+
+# Proportional Hazards Test
+cox_s_coxph <- coxph(cox_formula, data = dat_src)
+ph_test <- cox.zph(cox_s_coxph)
+ph_results <- as.data.frame(ph_test$table[, "p"])
+colnames(ph_results) <- "p_value"
+ph_results$Assumption <- ifelse(ph_results$p_value < 0.05, "Violated", "Holds")
+ph_results <- ph_results %>%
+  rownames_to_column("Variable") %>%
+  select(Variable, p_value, Assumption)
+print(ph_results)
+
+# Plot Schoenfeld residuals
+#plot(ph_test)
+
+# Clear datadist option after you are done
+options(datadist = NULL)
+
+```
+
+# EVALUATION
+
+###### One variable cox: test data
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(survival)
+
+# Replace all NA values in train_data with 0
+test_data[is.na(test_data)] <- 0
+
+# Verify that there are no NA values left in the dataset
+print(sum(is.na(test_data)))  # This should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome and ID)
+predictor_vars <- setdiff(names(test_data), c("time_to_event", "disease_status", "person_id", "race"))
+
+# Convert numeric variables to log(x + 1) and binary variables to factors
+test_data <- test_data %>%
+  mutate(across(all_of(predictor_vars), ~ {
+    if (is.numeric(.)) {
+      log(. + 1)  # Apply log(x + 1) transformation for numeric predictors
+    } else if (n_distinct(.) == 2) {
+      as.factor(.)  # Convert binary variables to factors
+    } else {
+      .  # Leave other types as is
+    }
+  }))
+
+# Initialize an empty data frame to store results
+cox_results <- data.frame(Variable = character(),
+                          p_value = numeric(),
+                          Significance = character(),
+                          stringsAsFactors = FALSE)
+
+# Run Cox PH model for each variable individually
+for (var in predictor_vars) {
+  # Check that the variable is either numeric or factor
+  if (is.numeric(test_data[[var]]) || is.factor(test_data[[var]])) {
+    # Fit Cox model with one variable at a time
+    cox_model <- coxph(Surv(time_to_event, disease_status) ~ get(var), data = test_data)
+    
+    # Get the p-value
+    p_val <- summary(cox_model)$coefficients[,"Pr(>|z|)"]
+    
+    # Check if p-value < 0.25 and mark it with an asterisk if true
+    signif <- ifelse(p_val < 0.25, "*", "")
+    
+    # Append results to the results data frame
+    cox_results <- rbind(cox_results, data.frame(Variable = var, 
+                                                 p_value = p_val, 
+                                                 Significance = signif))
+  } else {
+    message(paste("Skipping variable:", var, "- not numeric or factor."))
+  }
+}
+
+# Arrange results by p-value and print the most significant first
+cox_results <- cox_results %>% arrange(p_value)
+
+# Print the sorted results table with most significant variables first
+print(cox_results)
+
+```
+
+### Race specific model evalution on 30% of data
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(tibble)
+library(ggplot2)
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 2  # Truncation at year 5
+threshold <- 500  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- test_data
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  select(
+    Health_Insurance_Yes,
+    Health_Insurance_No,
+    Uses_only_Urgent_care,
+    Uses_only_Doctors_office,
+    Uses_only_Emergency_room,
+    race,
+    sex_at_birth,
+    raceBlack,
+    raceWhite,
+    raceAsian,
+    ethnicity,
+    Acidosis,
+    Anemia,
+    Anemia.in.chronic.kidney.disease,
+    Atherosclerosis.of.coronary.artery.without.angina.pectoris,
+    BMI,
+    Chronic.kidney.disease.stage.3,
+    Chronic.kidney.disease.stage.4,
+    Congestive.heart.failure,
+    Creatinine..Mass.volume..in.Body.fluid,
+    Diabetes.mellitus,
+    Disorder.of.kidney.and.or.ureter,
+    Disorder.of.muscle,
+    Erythrocyte.distribution.width..Ratio..by.Automated.count,
+    Essential.hypertension,
+    Gout,
+    Hemoglobin.A1c.Hemoglobin.total.in.Blood,
+    Hepatitis.B.virus.surface.Ag..Presence..in.Serum.or.Plasma.by.Immunoassay,
+    Hyperkalemia,
+    Hypothyroidism,
+    Iron..Mass.volume..in.Serum.or.Plasma,
+    Iron.deficiency.anemia,
+    Parathyrin.intact..Mass.volume..in.Serum.or.Plasma,
+    Peripheral.vascular.disease,
+    Polyneuropathy.due.to.diabetes.mellitus,
+    Protein..Mass.volume..in.Urine,
+    Proteinuria,
+    Renal.disorder.due.to.type.2.diabetes.mellitus,
+    Systolic.blood.pressure,
+    Triglyceride..Mass.volume..in.Serum.or.Plasma,
+    Type.2.diabetes.mellitus,
+    age_precise,
+    eGFR_ckd_epi_2021,
+    serum_creatinine,
+    smoking,
+    time_to_event_2,
+    outcome
+  )
+
+# Step 4: Split data by race
+dat_src <- df_filtered %>% filter(race %in% c('Black or African American', 'White'))
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+# Set up datadist for rms functions
+dd <- datadist(df_filtered)
+options(datadist = "dd")  # Set the datadist option for rms functions
+
+# Step 5: Define Cox model formula and fit model
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~", 
+                                paste(setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race")), collapse = " + ")))
+cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+# Generate the summary of the Cox model
+cox_summary <- summary(cox_s)
+print(cox_summary)
+
+# Function to handle single-level factors before creating model matrix
+prepare_matrix_data <- function(data, formula) {
+  # Remove single-level factors to avoid contrast errors
+  data <- data %>%
+    select(where(~ !is.factor(.) || n_distinct(.) > 1))  # Keep only factors with >1 level
+  
+  # Ensure all necessary variables are present and ordered as in formula
+  all_vars <- all.vars(formula)
+  missing_vars <- setdiff(all_vars, names(data))
+  data[missing_vars] <- NA
+  
+  # Return model matrix without intercept
+  model_matrix <- model.matrix(formula, data = data)[, -1]
+  return(model_matrix)
+}
+
+# Prepare model matrices for each target group
+X_tar_black <- prepare_matrix_data(dat_tar_black, cox_formula)
+X_tar_white <- prepare_matrix_data(dat_tar_white, cox_formula)
+X_tar_asian <- prepare_matrix_data(dat_tar_asian, cox_formula)
+
+# Step 6: Evaluation using C-index
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(X_tar_black %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(X_tar_white %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(X_tar_asian %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+# Step 7: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+
+
+```
+
+### Race free model evalution on 30% of data
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(tibble)
+library(ggplot2)
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 2  # Truncation at year 5
+threshold <- 500  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- test_data
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  select(
+    Health_Insurance_Yes,
+    Health_Insurance_No,
+    Uses_only_Urgent_care,
+    Uses_only_Doctors_office,
+    Uses_only_Emergency_room,
+    race,
+    sex_at_birth,
+    ethnicity,
+    Acidosis,
+    Anemia,
+    Anemia.in.chronic.kidney.disease,
+    Atherosclerosis.of.coronary.artery.without.angina.pectoris,
+    BMI,
+    Chronic.kidney.disease.stage.3,
+    Chronic.kidney.disease.stage.4,
+    Congestive.heart.failure,
+    Creatinine..Mass.volume..in.Body.fluid,
+    Diabetes.mellitus,
+    Disorder.of.kidney.and.or.ureter,
+    Disorder.of.muscle,
+    Erythrocyte.distribution.width..Ratio..by.Automated.count,
+    Essential.hypertension,
+    Gout,
+    Hemoglobin.A1c.Hemoglobin.total.in.Blood,
+    Hepatitis.B.virus.surface.Ag..Presence..in.Serum.or.Plasma.by.Immunoassay,
+    Hyperkalemia,
+    Hypothyroidism,
+    Iron..Mass.volume..in.Serum.or.Plasma,
+    Iron.deficiency.anemia,
+    Parathyrin.intact..Mass.volume..in.Serum.or.Plasma,
+    Peripheral.vascular.disease,
+    Polyneuropathy.due.to.diabetes.mellitus,
+    Protein..Mass.volume..in.Urine,
+    Proteinuria,
+    Renal.disorder.due.to.type.2.diabetes.mellitus,
+    Systolic.blood.pressure,
+    Triglyceride..Mass.volume..in.Serum.or.Plasma,
+    Type.2.diabetes.mellitus,
+    age_precise,
+    eGFR_ckd_epi_2021,
+    serum_creatinine,
+    smoking,
+    time_to_event_2,
+    outcome
+  )
+
+# Step 4: Split data by race
+dat_src <- df_filtered %>% filter(race %in% c('Black or African American', 'White'))
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+# Set up datadist for rms functions
+dd <- datadist(df_filtered)
+options(datadist = "dd")  # Set the datadist option for rms functions
+
+# Step 5: Define Cox model formula and fit model
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~", 
+                                paste(setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race")), collapse = " + ")))
+cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+# Generate the summary of the Cox model
+cox_summary <- summary(cox_s)
+print(cox_summary)
+
+# Function to handle single-level factors before creating model matrix
+prepare_matrix_data <- function(data, formula) {
+  # Remove single-level factors to avoid contrast errors
+  data <- data %>%
+    select(where(~ !is.factor(.) || n_distinct(.) > 1))  # Keep only factors with >1 level
+  
+  # Ensure all necessary variables are present and ordered as in formula
+  all_vars <- all.vars(formula)
+  missing_vars <- setdiff(all_vars, names(data))
+  data[missing_vars] <- NA
+  
+  # Return model matrix without intercept
+  model_matrix <- model.matrix(formula, data = data)[, -1]
+  return(model_matrix)
+}
+
+# Prepare model matrices for each target group
+X_tar_black <- prepare_matrix_data(dat_tar_black, cox_formula)
+X_tar_white <- prepare_matrix_data(dat_tar_white, cox_formula)
+X_tar_asian <- prepare_matrix_data(dat_tar_asian, cox_formula)
+
+# Step 6: Evaluation using C-index
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(X_tar_black %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(X_tar_white %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(X_tar_asian %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+# Step 7: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+
+
+```
+
+### Lab free model evalution on 30% of data
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(tibble)
+library(ggplot2)
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 2  # Truncation at year 5
+threshold <- 500  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- test_data
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns without lab-related variables
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  dplyr::select(
+    eGFR_ckd_epi_2021,
+    Health_Insurance_Yes,
+    Health_Insurance_No,
+    Uses_only_Urgent_care,
+    Uses_only_Doctors_office,
+    Uses_only_Emergency_room,
+    race,
+    sex_at_birth,
+    raceBlack,
+    raceWhite,
+    raceAsian,
+    ethnicity,
+    Acidosis,
+    Anemia,
+    Anemia.in.chronic.kidney.disease,
+    Atherosclerosis.of.coronary.artery.without.angina.pectoris,
+    BMI,
+    Chronic.kidney.disease.stage.3,
+    Chronic.kidney.disease.stage.4,
+    Congestive.heart.failure,
+    Diabetes.mellitus,
+    Disorder.of.kidney.and.or.ureter,
+    Disorder.of.muscle,
+    Essential.hypertension,
+    Gout,
+    Hypothyroidism,
+    Iron.deficiency.anemia,
+    Peripheral.vascular.disease,
+    Polyneuropathy.due.to.diabetes.mellitus,
+    Proteinuria,
+    Renal.disorder.due.to.type.2.diabetes.mellitus,
+    Systolic.blood.pressure,
+    Type.2.diabetes.mellitus,
+    age_precise,
+    smoking,
+    time_to_event_2,
+    outcome
+  )
+
+# Step 4: Split data by race
+dat_src <- df_filtered %>% filter(race %in% c('Black or African American', 'White'))
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+# Set up datadist for rms functions
+dd <- datadist(df_filtered)
+options(datadist = "dd")  # Set the datadist option for rms functions
+
+# Step 5: Define Cox model formula and fit model
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~", 
+                                paste(setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race")), collapse = " + ")))
+cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+# Generate the summary of the Cox model
+cox_summary <- summary(cox_s)
+print(cox_summary)
+
+# Function to handle single-level factors before creating model matrix
+prepare_matrix_data <- function(data, formula) {
+  # Remove single-level factors to avoid contrast errors
+  data <- data %>%
+    select(where(~ !is.factor(.) || n_distinct(.) > 1))  # Keep only factors with >1 level
+  
+  # Ensure all necessary variables are present and ordered as in formula
+  all_vars <- all.vars(formula)
+  missing_vars <- setdiff(all_vars, names(data))
+  data[missing_vars] <- NA
+  
+  # Return model matrix without intercept
+  model_matrix <- model.matrix(formula, data = data)[, -1]
+  return(model_matrix)
+}
+
+# Prepare model matrices for each target group
+X_tar_black <- prepare_matrix_data(dat_tar_black, cox_formula)
+X_tar_white <- prepare_matrix_data(dat_tar_white, cox_formula)
+X_tar_asian <- prepare_matrix_data(dat_tar_asian, cox_formula)
+
+# Step 6: Evaluation using C-index
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(X_tar_black %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(X_tar_white %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(X_tar_asian %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+# Step 7: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+
+
+```
+
+# Make sure, eGFR \< cut off, provide stratified results, use that to define \<60 or most common in literature, train in general and evaluate in subgroups, what addition EHR defined features can be used

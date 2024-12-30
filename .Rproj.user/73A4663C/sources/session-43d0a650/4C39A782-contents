@@ -1,0 +1,984 @@
+---
+title: "backup"
+format: html
+---
+
+```{r}
+# rename datasets
+condition <- dataset_36725329_condition_df
+device <- dataset_36725329_device_df
+drug <- dataset_36725329_drug_df
+measurement <- dataset_36725329_measurement_df
+observation <- dataset_36725329_observation_df
+person <- dataset_36725329_person_df
+procedure <- dataset_36725329_procedure_df
+
+
+# attach individual specific race
+# Function to add race column to a data frame based on person_id
+add_race_column <- function(df, person_df) {
+  df <- df %>%
+    left_join(person_df %>% select(person_id, race), by = "person_id")
+  return(df)
+}
+
+# Add race column to each dataset
+condition <- add_race_column(condition, person)
+device <- add_race_column(device, person)
+drug <- add_race_column(drug, person)
+measurement <- add_race_column(measurement, person)
+observation <- add_race_column(observation, person)
+procedure <- add_race_column(procedure, person)
+
+##########################################################################
+# person
+
+# Group by person_id and summarize the count of each
+person_summary <- person %>%
+  group_by(person_id) %>%
+  summarize(count = n())
+
+# Convert the summary to a data frame
+person_summary_df <- as.data.frame(person_summary)
+
+# Print the summary table
+print(person_summary_df)
+
+##########################################################################
+# condition
+
+# subsetting data
+
+##########################################################################
+# condition
+# subsetting data: 119 variables
+# Define the list of conditions and corresponding codes
+
+###########Rename to phecodes not conditions############
+
+conditions <- c(
+    "Acidosis", #1
+    "Acquired coagulation factor deficiency", #2
+    "Acquired absence of limb", #3
+    "Acquired hypothyroidism", #4
+    "Acute glomerulonephritis", #5
+    "Acute renal failure syndrome", #6
+    "Altered mental status", #7
+    "Amyloidosis", #8
+    "Anemia", #9.1
+    "Anemia in chronic kidney disease", #9.2
+    "Anemia of chronic disease",#9.3
+    "Oliguria and Anuria", #10
+    "Arteriovenous fistula", #11
+    "Atherosclerosis of arteries of the extremities", #12.1
+    "Atherosclerosis of renal artery", #12.2
+    "Atherosclerosis of native arteries of the extremities with ulceration or gangrene", #12 .3
+    "Bacteremia", #13
+    "Changes in skin texture", #14
+    "Chronic glomerulonephritis", #15.1 
+    "Glomerulonephritis", #15.2
+    "Chronic graft-versus-host disease", #16
+    "Chronic kidney disease stage 1", #17
+    "Chronic kidney disease stage 2", #18
+    "Chronic kidney disease stage 3", #19
+    "Chronic kidney disease stage 4", #20
+    "Chronic pain syndrome",#21
+    "Chronic renal failure", #22
+    "Chronic ulcer of lower extremity", #23
+    "Chronic vascular insufficiency of intestine", #24
+    "Clostridioides difficile infection", #25
+    "Complication associated with insulin pump", #26 #rename insulin pump user
+    "Peritoneal dialysis", #27 
+    #"Renal dialysis", #28.1 #In procedures 
+    # Hemodialysis #28.2
+    #"Congenital anomaly of the kidney", #29
+    #"Congenital osteodystrophy", #30
+    "Congestive heart failure", #31
+    "Deficiency anemias", #32
+    "Degenerative skin disorder", #33
+    "Diabetes mellitus", #34
+    "Disorder of artery", #35
+    "Disorder of cardiovascular system", #36
+    "Disorder of eye due to type 1 diabetes mellitus", #37
+    "Disorder of eye due to type 2 diabetes mellitus", #38
+    "Disorder of hard tissues of teeth", #39
+    "Disorder of kidney and/or ureter", #40
+    "Disorder of mineral metabolism", #41
+    "Disorder of muscle", #42
+    "Disorder of parathyroid gland", #43
+    "Disorder of penis", #44
+    "Disorder of phosphate, calcium and vitamin D metabolism", #45
+    "Disorder of phosphorus metabolism", #46
+    "Disorder of plasma protein metabolism", #47
+    "Disorder of porphyrin metabolism", #48
+    "Disorder of the urea cycle metabolism", #49
+    "End-stage renal disease", #50
+    "Essential hypertension", #51
+    "Failure to thrive in neonate", #52
+    "Frank hematuria", #53
+    "Gangrene", #54
+    "Gout", #55.1
+    "Gouty arthropathy", #55.2
+    "Granulomatosis with polyangiitis", #56
+    "Hydronephrosis", #57
+    "Hypercalcemia", #58
+    "Hypercoagulability state", #59
+    "Hyperkalemia", #60
+    "Hyperparathyroidism", #61
+    "Hyperparathyroidism due to renal insufficiency", #62
+    "Hypertensive complication", #63
+    "Hypertensive heart and chronic kidney disease", #64
+    "Hypertensive heart AND renal disease", #65
+    "Hypertrophy of kidney", #66
+    "Hypervolemia", #67
+    "Hypocalcemia", #68
+    "Hypoglycemia", #69
+    "Hypoparathyroidism", #70
+    "Hypothyroidism", #71
+    "Iatrogenic hypotension", #72
+    "Impaction of intestine", #73
+    "Impaired renal function disorder", #74
+    "Injury of globe of eye", #75
+    "Iron deficiency anemia", #76
+    "Ketoacidosis due to type 1 diabetes mellitus", #77
+    "Ketoacidosis due to type 2 diabetes mellitus", #78
+    "Low blood pressure", #79
+    "Lupus erythematosus", #80
+    "Complications of cardiac/vascular device, implant, and graft", #81
+    "Megaloblastic anemia due to folate deficiency", #82
+    "Membranous glomerulonephritis", #83
+    "Metabolic encephalopathy", #84
+    #"Multiple congenital cysts of kidney", #85
+    "Myoclonus", #86
+    "Nephritic syndrome", #87
+    "Nephropathy co-occurrent and due to systemic lupus erythematosus", #88
+    "Nephrosclerosis", #89
+    "Nephrotic syndrome", #90
+    "Non-autoimmune hemolytic anemia", #91
+    "Peripheral circulatory disorder due to type 1 diabetes mellitus", #92
+    "Peripheral circulatory disorder due to type 2 diabetes mellitus", #93
+    "Peripheral vascular complication", #94
+    "Peripheral vascular disease", #95
+    "Peripheral venous insufficiency", #96
+    "Polyneuropathy due to diabetes mellitus", #97
+    "Postoperative shock", #98
+    "Proteinuria", #99
+    "Proliferative glomerulonephritis", #100
+    "Renal disorder due to type 1 diabetes mellitus", #101
+    "Renal disorder due to type 2 diabetes mellitus", #102
+    "Acute renal failure", #103.1
+    "Renal failure", #103.2
+    "Renal function tests abnormal", #104
+    "Renal osteodystrophy", #105
+    "Respiratory failure", #106
+    "Retinal edema", #107
+    "Retinopathy due to diabetes mellitus", #108
+    "Screening finding", #109
+    "Secondary diabetes mellitus", #110
+    "Sepsis", #111.1
+    "Sepsis due to Gram negative bacteria", #111.2
+    "Gram positive sepsis", #111.3
+    "Septic shock", #112
+    "Septicemia due to enterococcus", #113
+    "Shock",#114
+    "Small kidney", #115
+    "Systemic lupus erythematosus", #116
+    "Systemic sclerosis", #117
+    "Thrombotic microangiopathy", #118
+    "Transplanted kidney present", #119
+    "Tubulointerstitial nephritis", #120
+    "Type 1 diabetes mellitus", #121
+    "Type 2 diabetes mellitus", #122
+    "Vascular insufficiency of intestine" #123
+)
+
+# Corresponding ICD codes for each condition
+icd_codes <- list(
+  c("E87.2", "276.2"), #1
+  c("D68.4", "286.7"), #2
+  c("Z89","V49.6"), #3
+  c("E03", "244"), #4
+  c("N00.9", "580.9"), #5
+  c("N17.9", "584.9"), #6
+  c("R41.8", "780.9"), #7
+  c("E85", "277.30"), #8
+  c("D64.9", "285.9"),#9.1
+  c("D63.1", "285.21"), #9.2
+  c("D63.8", "285.29"), #9.3
+  c("R34", "788.5"), #10
+  c("I77.0", "447.0"), #11
+  c("I70.2", "440.20"), #12.1
+  c("I70.26", "440.24"), #12.2
+  c("I70.1", "440.1"), #12.3
+  c("R78.81", "790.7"), #13
+  c("R23.4", "782.0"), #14
+  c("N03", "582.1"), #15.1
+  c("N00.9", "580.9"), #15.2
+  c("D89.81", "279.50"), #16
+  c("N18.1", "585.1"), #17
+  c("N18.2", "585.2"), #18
+  c("N18.3", "585.3"), #19
+  c("N18.4", "585.4"), #20
+  c("G89", "338.29"), #21
+  c("N18.5", "585.5"), #22
+  c("L97", "707.1"), #23
+  c("K55.1", "569.89"), #24
+  c("A04.7", "008.45"), #25
+  c("Z96.41", "V45.85"), #26
+  c("Z49.0", "V56.8"), #27
+  #c("N18.6", "586.6"), #28.1
+  #c("N18.6", "586.6"), #28.2
+  #c("Q60", "753.3"), #29
+  #c("Q78.6", "756.50"), #30
+  c("I50.9", "428.0"), #31
+  c("D53.9", "281.9"), #32
+  c("L81", "709.9"), #33
+  c("E13", "250.00"), #34
+  c("I77.1", "447.1"), #35
+  c("I99.9", "459.9"), #36
+  c("E10.9", "250.51", "250.53"), #37
+  c("E11.9", "250.50", "250.52"), #38
+  c("K03.6", "521.00"), #39
+  c("N28.8", "593.89"), #40
+  c("E83.9", "275.49"), #41
+  c("M62.81", "359.89"), #42
+  c("E21.3", "252.00"), #43
+  c("N48.9", "607.84"), #44
+  c("E83.59", "275.41"), #45
+  c("E83.39", "275.3"), #46
+  c("E88.1", "277.3"), #47
+  c("E80.2", "277.1"), #48
+  c("E72.2", "270.6"), #49
+  c("N18.6", "585.6"), #50
+  c("I10", "401.9"), #51
+  c("R62.51", "783.41"), #52
+  c("R31", "599.7"), #53
+  c("I96", "785.4"), #54
+  c("M10.9", "274.9"), #55.1
+  c("M10.0", "274.00"), #55.2
+  c("M31.3", "446.4"), #56
+  c("N13.3", "591"), #57
+  c("E83.52", "275.42"), #58
+  c("D68.69", "289.81"), #59
+  c("E87.5", "276.7"), #60
+  c("E21.0", "252.01"), #61
+  c("N25.81", "588.81"), #62
+  c("I16", "401.0"), #63
+  c("I13.0", "403.9"), #64
+  c("I13.1", "403.90"), #65
+  c("N28.81", "593.1"), #66
+  c("E87.7", "276.69"), #67
+  c("E83.51", "275.41"), #68
+  c("E16", "251.2"), #69
+  c("E20", "252.1"), #70
+  c("E03.9", "244.9"), #71
+  c("I95.2", "458.2"), #72
+  c("K56.41", "560.3"), #73
+  c("N18.9", "588"), #74
+  c("S05.9", "360.6"), #75
+  c("D50.9", "280.9"), #76
+  c("E10.1", "250.11", "250.13"), #77
+  c("E11.1", "250.10", "250.12"), #78
+  c("I95.9", "458.9"), #79
+  c("M32", "710.0"), #80
+  c("T82.89", "996.72"), #81
+  c("D52.1", "281.2"), #82
+  c("N03.2", "582.1"), #83
+  c("G93.41", "437.2"), #84
+  #c("Q61.2", "753.13"), #85
+  c("G25.3", "333.2"), #86
+  c("N15.9", "593.4"), #87
+  c("N08", "583.81"), #88
+  c("N26.9", "583.81"), #89
+  c("N04", "581.9"), #90
+  c("D59.9", "283.9"), #91
+  c("E10.51", "250.71"), #92
+  c("E11.51", "250.70"), #93
+  c("I73.89", "443.89"), #94
+  c("I73.9", "443.9"), #95
+  c("I87.2", "459.81"), #96
+  c("E10.42", "250.60"), #97
+  c("T81.1", "998.0"), #98
+  c("R80", "791.0"), #99
+  c("N00", "580"), #100
+  c("E10.21", "250.41", "250.43"), #101
+  c("E11.21", "250.40", "250.42"), #102
+  c("N17", "584"), #103.1
+  c("N19", "586"), #103.2
+  c("R94.4", "793.1"), #104
+  c("N25.0", "588.0"), #105
+  c("J96.9", "518.81"), #106
+  c("H35.81", "362.83"), #107
+  c("E10.319", "E11.319", "362.01"), #108
+  c("Z11", "V75"), #109
+  c("E08", "249"), #110
+  c("A41.9", "038.9"), #111.1
+  c("A41.50", "038.4"), #111.2
+  c("A41.1", "038.2"), #111.3
+  c("R65.21", "785.52"), #112
+  c("A41.81", "038.0"), #113
+  c("R57.9", "785.50"), #114
+  c("N26.2", "587"), #115
+  c("M32.10", "710.0"), #116
+  c("M34.2", "710.1"), #117
+  c("M31.1", "446.6"), #118
+  c("Z94.0", "996.81"), #119
+  c("N10", "583.81"), #120
+  c("E10", "250.01"), #121
+  c("E11", "250.00"), #122
+  c("K55.0", "557.0") #123
+)
+
+
+# Corresponding ICD codes for each condition
+snomed_codes <- list(
+  51387008, #1
+  25904003, #2
+  816117000, #3
+  40930008, #4
+  19351000, #5
+  14669001, #6
+  419284004, #7
+  17602002, #8
+  271737000, #9.1
+  707323002, #9.2
+  234347009, #9.3
+  c(83128009,2472002), #10
+  439470001, #11
+  51274000, #12.1
+  45281005, #12.2
+  451041000124103, #12.3
+  5758002, #13
+  274672009, #14
+  20917003, #15.1
+  36171008, #15.2
+  402356004, #16
+  431855005, #17
+  431856006, #18
+  433144002, #19
+  431857002, #20
+  373621006, #21
+  90688005, #22
+  26649005, #23
+  111354009, #24
+  186431008, #25
+  473033004, #26
+  431028002, #27 
+  # 265764009, #28.1
+  # 302497006, #28.2
+  # 110182004, #29
+  # 348350001, #30
+  42343007, #31
+  267513007, #32
+  396325007, #33
+  73211009, #34
+  359557001, #35
+  49601007, #36
+  739681000, #37
+  422099009, #38
+  46557008, #39
+  443820000, #40
+  45744005, #41
+  129565002, #42
+  73132005, #43
+  33958003, #44
+  237879001, #45
+  87049008, #46
+  147211000119101, #47
+  29094004, #48
+  36444000, #49
+  46177005, #50
+  59621000, #51
+  134251000119105, #52
+  197941005, #53
+  372070002, #54
+  90560007, #55.1
+  190828008, #55.2
+  195353004, #56
+  43064006, #57
+  66931009, #58
+  76612001, #59
+  14140009, #60
+  66999008, #61
+  19034001, #62
+  449759005, #63
+  8501000119104, #64
+  86234004, #65
+  88531004, #66
+  21639008, #67
+  5291005, #68
+  302866003, #69
+  36976004, #70
+  40930008, #71
+  408668005, #72
+  62851005, #73
+  197663003, #74
+  231794000, #75
+  87522002, #76
+  420270002, #77
+  421750000, #78
+  45007003, #79
+  200936003, #80
+  473041004, #81
+  85649008, #82
+  77182004, #83
+  50122000, #84
+  # 82525005, #85
+  17450006, #86
+  7724006, #87
+  295101000119105, #88
+  32916005, #89
+  52254009, #90
+  4854004, #91
+  421365002, #92
+  422166005, #93
+  10596002, #94
+  400047006, #95
+  20696009, #96
+  49455004, #97
+  58581001, #98
+  29738008, #99
+  441815006, #100
+  421893009, #101
+  420279001, #102
+  14669001, #103.1
+  42399005, #103.2
+  167180005, #104
+  16726004, #105
+  409622000, #106
+  6141006, #107
+  4855003, #108
+  365856005, #109
+  8801005, #110
+  91302008, #111.1
+  449082003, #111.2
+  194394004, #111.3
+  76571007, #112
+  310669007, #113
+  27942005, #114
+  236448000, #115
+  55464009, #116
+  89155008, #117
+  126729006, #118
+  737295003, #119
+  428255004, #120
+  46635009, #121
+  44054006, #122
+  82196007 #123
+)
+
+
+# Define the function to filter and rename rows, keeping original column
+filter_and_ename <- function(data, condition, codes) {
+  code_patterns <- paste0("^", codes)
+  data %>%
+    filter(
+      standard_concept_name %in% condition |
+      grepl(paste(code_patterns, collapse = "|"), source_concept_code)
+    ) %>%
+    mutate(renamed_concept_name = condition[1])
+}
+
+
+# Apply the function iteratively using purrr::map2
+condition_filtered <- map2_dfr(conditions, icd_code, ~ filter_and_rename(condition, .x, .y))
+
+# Initialize an empty data frame to store results
+results <- data.frame(Condition = character(), UniquePersonIDs = integer(), stringsAsFactors = FALSE)
+
+# Calculate the number of unique person_id for each condition
+results <- condition_filtered %>%
+  group_by(renamed_concept_name) %>%
+  summarise(UniquePersonIDs = n_distinct(person_id)) %>%
+  rename(Condition = renamed_concept_name)
+
+# Print the results table
+print(results)
+
+
+# Check for duplicate rows in condition_filtered
+# Define the function to check for repeated start and end datetime sets grouped by person_id and visit_occurrence_id
+check_repeated_sets <- function(data) {
+  data %>%
+    group_by(person_id, visit_occurrence_id, condition_start_datetime, condition_end_datetime) %>%
+    summarise(count = n(), .groups = 'drop') %>%
+    filter(count > 1)
+}
+
+# Apply the function to the condition_filtered dataset
+repeated_sets <- condition_filtered %>%
+  group_by(standard_concept_name) %>%
+  do(check_repeated_sets(.))
+
+# Remove duplicates, keeping only one of each repeated set
+condition_filtered_unique <- condition_filtered %>%
+  anti_join(repeated_sets, by = c("person_id", "visit_occurrence_id", "condition_start_datetime", "condition_end_datetime", "standard_concept_name"))
+
+# Initialize an empty data frame to store results
+results <- data.frame(Condition = character(), UniquePersonIDs = integer(), Counts = integer(), stringsAsFactors = FALSE)
+
+# Apply the function iteratively and calculate the number of unique person_id and counts for each condition
+for (i in seq_along(conditions)) {
+  filtered_data <- filter_and_rename(condition_filtered_unique, conditions[[i]], icd_code[[i]])
+  unique_person_ids <- n_distinct(filtered_data$person_id)
+  counts <- nrow(filtered_data)
+  results <- rbind(results, data.frame(Condition = conditions[[i]][1], UniquePersonIDs = unique_person_ids, Counts = counts))
+}
+
+# Print the results table
+print(results)
+
+# Group by standard_concept_name and renamed_concept_name, then summarize the count of each variable
+condition_summary <- condition_filtered_unique %>%
+  group_by(standard_concept_name, renamed_concept_name) %>%
+  summarize(count = n(), .groups = 'drop')
+
+print(condition_summary)
+
+##########################################################################
+# device
+
+# Group by standard_concept_name and summarize the count of each
+device_summary <- device %>%
+  group_by(standard_concept_name) %>%
+  summarize(count = n())
+
+# Convert the summary to a data frame
+device_summary_df <- as.data.frame(device_summary)
+
+# Print the summary table
+print(device_summary_df)
+
+##########################################################################
+# drug
+
+# Group by standard_concept_name and summarize the count of each
+drug_summary <- drug %>%
+  group_by(standard_concept_name) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+# Create a vector containing all unique variables from the provided images
+medication <- list(
+  "aliskiren",
+  "alteplase",
+  "aluminum hydroxide",
+  "amlodipine",
+  "calcitriol",
+  "calcium acetate",
+  "carvedilol",
+  "cascara sagrada",
+  "ceftazidime",
+  "cinacalcet",
+  "citric acid",
+  "daptomycin",
+  "darbepoetin alfa",
+  "dextran",
+  "dextran 70",
+  "dextran 75 Injectable Solution",
+  "doxercalciferol",
+  "elbasvir",
+  "emtricitabine",
+  "epoetin alfa",
+  "etelcalcetide",
+  "ethyl chloride",
+  "etravirine",
+  "grazoprevir",
+  "heparin",
+  "hepatitis B immune globulin",
+  "hepatitis B surface antigen vaccine",
+  "hydralazine",
+  "insulin aspart protamine, human",
+  "insulin aspart, human",
+  "insulin detemir",
+  "insulin glargine",
+  "insulin glulisine, human",
+  "insulin isophane",
+  "insulin lispro",
+  "insulin lispro protamine, human",
+  "insulin, regular, human",
+  "iron sucrose",
+  "iron-dextran complex",
+  "lanthanum",
+  "mannitol",
+  #"methoxy polyethylene glycol-epoetin beta",
+  "midodrine",
+  "minoxidil",
+  "nevirapine",
+  "nifedipine",
+  "paricalcitol",
+  "pitavastatin",
+  "protriptyline",
+  "saquinavir",
+  "sevelamer",
+  "sodium bicarbonate",
+  "sodium citrate",
+  "sodium ferric gluconate complex",
+  "sodium polystyrene sulfonate",
+  "vancomycin",
+  "water"
+)
+
+
+# Filter the drug data frame to keep only rows where the standard_concept_name is in medication
+drug_filtered <- drug %>%
+  filter(standard_concept_name %in% medication)
+
+  
+# Find variables in medication list that are not in the drug_filtered$standard_concept_name column
+not_in_drug_filtered <- setdiff(medication, drug_filtered$standard_concept_name)
+
+# Print the result
+print(not_in_drug_filtered)
+
+# Summarize the data to get the unique person_id and count for each variable
+summary_table <- drug_filtered %>%
+  group_by(standard_concept_name) %>%
+  summarise(
+    unique_person_id = list(unique(person_id)),
+    count = n()
+  )
+
+# Print the summary table
+print(summary_table)
+##########################################################################
+# measurement
+
+# Group by standard_concept_name and summarize the count of each
+measurement_summary <- measurement %>%
+  group_by(standard_concept_name) %>%
+  summarize(count = n())
+
+# Convert the summary to a data frame
+measurement_summary_df <- as.data.frame(measurement_summary)
+
+# Print the summary table
+print(measurement_summary_df)
+
+
+# Create a vector containing all unique variables from the provided images
+diagnostics <- list(
+  #"Administration of medication",
+  #"Arteriovenous anastomosis for renal dialysis",
+  "Bilirubin.indirect [Mass/volume] in Serum or Plasma",
+  "Calcium.ionized [Moles/volume] in Serum or Plasma",
+  "Creatinine [Mass/volume] in Body fluid",
+  "Erythrocyte distribution width [Ratio] by Automated count",
+  "Ferritin [Mass/volume] in Serum or Plasma",
+  "Fructosamine [Moles/volume] in Serum or Plasma",
+  #"Hemodialysis",
+  "Hepatitis B virus core IgG Ab [Units/volume] in Serum by Immunoassay",
+  "Hepatitis B virus surface Ab [Presence] in Serum by Immunoassay",
+  "Hepatitis B virus surface Ab [Units/volume] in Serum",
+  "Hepatitis B virus surface Ab [Units/volume] in Serum by Radioimmunoassay (RIA)",
+  "Hepatitis B virus surface Ag [Presence] in Serum or Plasma by Immunoassay",
+  "Hepatitis C virus Ab [Presence] in Serum or Plasma by Immunoassay",
+  "Hepatitis C virus Ab [Presence] in Serum by Immunoblot",
+  #"HLA Ab [Presence] in Serum",
+  "Iron binding capacity [Mass/volume] in Serum or Plasma",
+  "Iron [Mass/volume] in Serum or Plasma",
+  "Iron saturation [Mass Fraction] in Serum or Plasma",
+  "Nucleated erythrocytes [#/volume] in Body fluid by Manual count",
+  "Parathyrin.intact [Mass/volume] in Serum or Plasma",
+  #"Parathyroid Hormones",
+  #"Partial nephrectomy",
+  #"Peritoneal dialysis",
+  "Protein [Mass/volume] in Urine",
+  "Reticulocytes [#/volume] in Blood",
+  "Reticulocytes/100 erythrocytes in Blood",
+  #"Therapeutic procedure",
+  #"Total nephrectomy",
+  "Iron binding capacity [Mass/volume] in Serum or Plasma",
+  "Transferrin [Mass/volume] in Serum or Plasma",
+  "Urate [Mass/volume] in Serum or Plasma",
+  "Vancomycin [Mass/volume] in Serum or Plasma",
+
+  
+  "Body height",
+  "Body weight",
+  "Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (MDRD)",
+  "Hemoglobin A1c/Hemoglobin.total in Blood",
+  "Systolic blood pressure",
+  "Triglyceride [Mass/volume] in Serum or Plasma"
+)
+
+
+# Filter the measurement data frame to keep only rows where the standard_concept_name is in diagnostics
+measurement_filtered <- measurement %>%
+  filter(standard_concept_name %in% diagnostics)
+
+# Find variables in diagnostics list that are not in the measurement_filtered$standard_concept_name column
+not_in_measurement_filtered <- setdiff(diagnostics, measurement_filtered$standard_concept_name)
+
+# Print the result
+print(not_in_measurement_filtered)
+
+# Summarize the data to get the unique person_id and count for each variable
+summary_table <- measurement_filtered %>%
+  group_by(standard_concept_name) %>%
+  summarise(
+    unique_person_id = list(unique(person_id)),
+    count = n()
+  )
+
+# Print the summary table
+print(summary_table)
+##########################################################################
+# observation
+
+# Group by standard_concept_name and summarize the count of each
+observation_summary <- observation %>%
+  group_by(standard_concept_name) %>%
+  summarize(count = n())
+
+# Convert the summary to a data frame
+observation_summary_df <- as.data.frame(observation_summary)
+
+# Print the summary table
+print(observation_summary_df)
+
+
+# Define the concept name to filter
+concept_name <- "Tobacco smoking status"
+
+# Filter the observation data frame to keep only rows where standard_concept_name is "Tobacco smoking status"
+observation_filtered <- observation %>%
+  filter(standard_concept_name == concept_name)
+
+# Print the filtered data
+print(observation_filtered)
+
+# Summarize the data to get the unique person_id and count for the concept name
+summary_table <- observation_filtered %>%
+  group_by(standard_concept_name) %>%
+  summarise(
+    unique_person_id = list(unique(person_id)),
+    count = n()
+  )
+
+# Print the summary table
+print(summary_table)
+##########################################################################
+# procedure
+
+# Group by standard_concept_name and summarize the count of each
+procedure_summary <- procedure %>%
+  group_by(standard_concept_name) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+# Convert the summary to a data frame
+procedure_summary_df <- as.data.frame(procedure_summary)
+
+# Print the summary table
+print(procedure_summary_df)
+
+
+# Define the list of diagnostic procedures
+diagnostic_list <- list(
+  "Arteriovenous anastomosis for renal dialysis",
+  "Hemodialysis",
+  "Partial nephrectomy",
+  "Peritoneal dialysis",
+  "Total nephrectomy",
+  
+  "Direct skilled nursing services of a registered nurse (rn) in the home health or hospice setting, each 15 minutes"
+  
+)
+
+# Filter the procedure data frame to keep only rows where the standard_concept_name is in diagnostic_vector
+procedure_filtered <- procedure %>%
+  filter(standard_concept_name %in% diagnostic_list)
+
+# Find variables in diagnostic_vector that are not in the procedure_filtered$standard_concept_name column
+not_in_procedure_filtered <- setdiff(diagnostic_list, procedure_filtered$standard_concept_name)
+
+# Print the result
+print(not_in_procedure_filtered)
+
+# Summarize the data to get the unique person_id and count for each variable
+summary_table <- procedure_filtered %>%
+  group_by(standard_concept_name) %>%
+  summarise(
+    unique_person_id = list(unique(person_id)),
+    count = n()
+  )
+##########################################################################
+##########################################################################
+##########################################################################
+##########################################################################
+# Target Population
+
+# Target Population: eGFR
+# Define the specific standard concept name to filter
+concept_name <- "Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (MDRD)"
+
+# Filter the measurement_filtered data frame
+measurement_filtered_specific <- measurement_filtered %>%
+  filter(standard_concept_name == concept_name)
+
+# Summarize the data to get the count of concept_name, earliest measurement_datetime, and latest measurement_datetime for each unique person_id
+summary_table <- measurement_filtered_specific %>%
+  group_by(person_id) %>%
+  summarize(
+    count = n(),
+    earliest_measurement_datetime = min(measurement_datetime),
+    latest_measurement_datetime = max(measurement_datetime)
+  )
+
+# Print the summary table
+print(summary_table)
+
+# Find the first measurement for each person
+first_measurements <- measurement_filtered_specific %>%
+  group_by(person_id) %>%
+  arrange(measurement_datetime) %>%
+  slice(1) %>%
+  ungroup()
+
+# Define the groups based on the ranges provided
+first_measurements <- first_measurements %>%
+  mutate(group = case_when(
+    value_as_number <= 30 ~ "<= 30",
+    value_as_number > 30 & value_as_number <= 60 ~ "31-60",
+    value_as_number > 60 & value_as_number <= 90 ~ "61-90",
+    value_as_number > 90 ~ "> 90"
+  ))
+
+# Calculate the count and percentage of each group
+group_summary <- first_measurements %>%
+  group_by(group) %>%
+  summarise(
+    count = n(),
+    white_count = sum(race == "White"),
+    black_count = sum(race == "Black or African American")
+  ) %>%
+  mutate(
+    percentage = (count / sum(count)) * 100,
+    white_percentage = (white_count / count) * 100,
+    black_percentage = (black_count / count) * 100
+  )
+
+# Print the summary table
+print("Group summary with count and percentage, including race breakdown:")
+print(group_summary)
+
+
+
+# Target Population: ESRD
+# Define the specific standard concept name to filter in the condition dataset
+condition_concept_name <- "End-stage renal disease"
+
+# Filter the condition data frame to keep only rows where standard_concept_name is "End-stage renal disease"
+condition_filtered <- condition %>%
+  filter(standard_concept_name == condition_concept_name)
+
+# Print the condition_start_date and condition_end_date for the filtered rows
+print(condition_filtered %>% select(person_id, condition_start_datetime, condition_end_datetime))
+
+# Calculate the count of person_id, earliest and latest condition_start_datetime, and condition_end_datetime
+person_id_summary <- condition_filtered %>%
+  group_by(person_id) %>%
+  summarise(
+    count = n(),
+    earliest_condition_start_datetime = min(condition_start_datetime),
+    latest_condition_start_datetime = max(condition_start_datetime),
+    earliest_condition_end_datetime = min(condition_end_datetime),
+    latest_condition_end_datetime = max(condition_end_datetime)
+  )
+
+# Print the summary for each person_id
+print(person_id_summary)
+
+
+# Calculate the count and percentage of races for the filtered rows
+race_summary <- condition_filtered %>%
+  group_by(race) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Print the race summary
+print(race_summary)
+
+# Now, join the condition dates for "End-stage renal disease" with the summary table from measurement_filtered_specific
+# Define the specific standard concept name to filter in the measurement dataset
+measurement_concept_name <- "Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (MDRD)"
+
+# Filter the measurement_filtered data frame
+measurement_filtered_specific <- measurement_filtered %>%
+  filter(standard_concept_name == measurement_concept_name)
+
+# Summarize the data to get the count of concept_name, earliest measurement_datetime, and latest measurement_datetime for each unique person_id
+summary_table <- measurement_filtered_specific %>%
+  group_by(person_id) %>%
+  summarize(
+    count = n(),
+    earliest_measurement_datetime = min(measurement_datetime),
+    latest_measurement_datetime = max(measurement_datetime)
+  )
+
+# Join the condition dates with the summary table
+summary_table_with_conditions <- summary_table %>%
+  left_join(condition_filtered %>% select(person_id, condition_start_datetime, condition_end_datetime), by = "person_id")
+
+# Print the updated summary table
+print(summary_table_with_conditions)
+
+
+# Define the specific standard concept names to filter
+measurement_concept_name <- "Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (MDRD)"
+condition_concept_name <- "End-stage renal disease"
+
+# Filter the measurement data frame
+measurement_filtered_specific <- measurement_filtered %>%
+  filter(standard_concept_name == measurement_concept_name)
+
+# Summarize the data to get the count of concept_name, earliest measurement_datetime, and latest measurement_datetime for each unique person_id
+summary_table <- measurement_filtered_specific %>%
+  group_by(person_id) %>%
+  summarize(
+    eGFR_count = n(),
+    earliest_eGFR_datetime = min(measurement_datetime),
+    latest_eGFR_datetime = max(measurement_datetime)
+  )
+
+# Filter the condition data frame to keep only rows where standard_concept_name is "End-stage renal disease"
+condition_filtered <- condition %>%
+  filter(standard_concept_name == condition_concept_name)
+
+# Summarize the condition data to get the earliest and latest condition_start_datetime and condition_end_datetime for each unique person_id
+condition_summary <- condition_filtered %>%
+  group_by(person_id) %>%
+  summarize(
+    earliest_ESRD_start_datetime = min(condition_start_datetime),
+    latest_ESRD_start_datetime = max(condition_start_datetime),
+    earliest_ESRD_end_datetime = min(condition_end_datetime),
+    latest_ESRD_end_datetime = max(condition_end_datetime)
+  )
+
+# Join the condition dates with the summary table
+summary_table_with_conditions <- summary_table %>%
+  left_join(condition_summary, by = "person_id")
+
+# Print the updated summary table
+print(summary_table_with_conditions)
+
+
+# Calculate the total number of unique person_ids in the summary_table_with_conditions
+total_persons <- n_distinct(summary_table_with_conditions$person_id)
+
+# Calculate the number of unique person_ids that had ESRD (non-NA values in ESRD columns)
+persons_with_ESRD <- summary_table_with_conditions %>%
+  filter(!is.na(earliest_ESRD_start_datetime) | !is.na(latest_ESRD_start_datetime)) %>%
+  summarize(count = n_distinct(person_id)) %>%
+  pull(count)
+
+# Calculate the percentage of the population that had ESRD
+percentage_with_ESRD <- (persons_with_ESRD / total_persons) * 100
+
+# Print the results
+print(paste("Total number of persons:", total_persons))
+print(paste("Number of persons with ESRD:", persons_with_ESRD))
+print(paste("Percentage of persons with ESRD:", round(percentage_with_ESRD, 2), "%"))
+
+```

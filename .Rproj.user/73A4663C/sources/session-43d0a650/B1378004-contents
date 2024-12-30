@@ -1,0 +1,2903 @@
+---
+title: "albumin"
+format: html
+editor: visual
+---
+
+## APOL1 genetic variant population
+
+```{r}
+library(tidyverse)
+library(bigrquery)
+
+# This query represents dataset "followup_cohort_data" for domain "person" and was generated for All of Us Controlled Tier Dataset v7
+dataset_11738605_person_sql <- paste("
+    SELECT
+        person.person_id,
+        p_gender_concept.concept_name as gender,
+        person.birth_datetime as date_of_birth,
+        p_race_concept.concept_name as race,
+        p_ethnicity_concept.concept_name as ethnicity,
+        p_sex_at_birth_concept.concept_name as sex_at_birth 
+    FROM
+        `person` person 
+    LEFT JOIN
+        `concept` p_gender_concept 
+            ON person.gender_concept_id = p_gender_concept.concept_id 
+    LEFT JOIN
+        `concept` p_race_concept 
+            ON person.race_concept_id = p_race_concept.concept_id 
+    LEFT JOIN
+        `concept` p_ethnicity_concept 
+            ON person.ethnicity_concept_id = p_ethnicity_concept.concept_id 
+    LEFT JOIN
+        `concept` p_sex_at_birth_concept 
+            ON person.sex_at_birth_concept_id = p_sex_at_birth_concept.concept_id  
+    WHERE
+        person.PERSON_ID IN (SELECT
+            distinct person_id  
+        FROM
+            `cb_search_person` cb_search_person  
+        WHERE
+            cb_search_person.person_id IN (SELECT
+                person_id 
+            FROM
+                `cb_variant_to_person` 
+            CROSS JOIN
+                UNNEST(person_ids) AS person_id 
+            WHERE
+                vid IN ('22-36265860-A-G', '22-36265988-T-G', '22-36265995-AATAATT-A') ) )", sep="")
+
+# Formulate a Cloud Storage destination path for the data exported from BigQuery.
+# NOTE: By default data exported multiple times on the same day will overwrite older copies.
+#       But data exported on a different days will write to a new location so that historical
+#       copies can be kept as the dataset definition is changed.
+person_11738605_path <- file.path(
+  Sys.getenv("WORKSPACE_BUCKET"),
+  "bq_exports",
+  Sys.getenv("OWNER_EMAIL"),
+  strftime(lubridate::now(), "%Y%m%d"),  # Comment out this line if you want the export to always overwrite.
+  "person_11738605",
+  "person_11738605_*.csv")
+message(str_glue('The data will be written to {person_11738605_path}. Use this path when reading ',
+                 'the data into your notebooks in the future.'))
+
+# Perform the query and export the dataset to Cloud Storage as CSV files.
+# NOTE: You only need to run `bq_table_save` once. After that, you can
+#       just read data from the CSVs in Cloud Storage.
+bq_table_save(
+  bq_dataset_query(Sys.getenv("WORKSPACE_CDR"), dataset_11738605_person_sql, billing = Sys.getenv("GOOGLE_PROJECT")),
+  person_11738605_path,
+  destination_format = "CSV")
+
+
+# Read the data directly from Cloud Storage into memory.
+# NOTE: Alternatively you can `gsutil -m cp {person_11738605_path}` to copy these files
+#       to the Jupyter disk.
+read_bq_export_from_workspace_bucket <- function(export_path) {
+  col_types <- cols(gender = col_character(), race = col_character(), ethnicity = col_character(), sex_at_birth = col_character())
+  bind_rows(
+    map(system2('gsutil', args = c('ls', export_path), stdout = TRUE, stderr = TRUE),
+        function(csv) {
+          message(str_glue('Loading {csv}.'))
+          chunk <- read_csv(pipe(str_glue('gsutil cat {csv}')), col_types = col_types, show_col_types = FALSE)
+          if (is.null(col_types)) {
+            col_types <- spec(chunk)
+          }
+          chunk
+        }))
+}
+dataset_11738605_person_df <- read_bq_export_from_workspace_bucket(person_11738605_path)
+
+dim(dataset_11738605_person_df)
+
+head(dataset_11738605_person_df, 5)
+```
+
+Data wrangling
+
+```{r}
+apol1_person <- dataset_11738605_person_df
+
+filtered_person_with_summary <- read.csv("my_dataframe_insured_routinehealth.csv")
+
+
+# Create the binary column 'apol1_gene_carrier' in 'filtered_person_with_summary'
+filtered_person_with_summary <- filtered_person_with_summary %>%
+  mutate(
+    apol1_gene_carrier = ifelse(person_id %in% apol1_person$person_id, 1, 0)
+  )
+
+# Save the filtered_person_with_summary dataframe as refiltered_person_with_summary.csv
+write.csv(filtered_person_with_summary, file = "my_dataframe_insured_routinehealth_apol1.csv", row.names = FALSE)
+
+
+```
+
+# Survival Analysis
+
+```{r}
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth_apol1.csv")
+
+# Load necessary libraries
+library(survival)
+library(survminer)
+
+# Prepare the survival object
+# Assuming `time_to_event` is the time variable and `disease_status` is the event indicator (1 = event occurred, 0 = censored)
+surv_object <- Surv(time = my_dataframe$time_to_event, event = my_dataframe$disease_status)
+
+# Fit Kaplan-Meier survival curves based on `apol1_gene_carrier` status
+km_fit <- survfit(surv_object ~ apol1_gene_carrier, data = my_dataframe)
+
+# Plot the Kaplan-Meier curves
+ggsurvplot(
+  km_fit,
+  data = my_dataframe,
+  pval = TRUE,                        # Display the p-value of the log-rank test
+  conf.int = TRUE,                    # Show confidence intervals
+  risk.table = TRUE,                  # Add risk table below the plot
+  risk.table.col = "strata",          # Color the risk table by strata
+  legend.labs = c("Non-Carrier", "Carrier"),  # Customize legend labels
+  legend.title = "APOL1 Gene Carrier",
+  xlab = "Time (days)",               # Customize the x-axis label
+  ylab = "Survival Probability",       # Customize the y-axis label
+  ggtheme = theme_minimal()            # Use a minimal theme for publication-quality
+)
+
+
+```
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(survminer)
+
+# Prepare the survival object
+# Assuming `time_to_event` is the time variable and `disease_status` is the event indicator (1 = event occurred, 0 = censored)
+surv_object <- Surv(time = my_dataframe$time_to_event, event = my_dataframe$disease_status)
+
+# Fit Kaplan-Meier survival curves based on `apol1_gene_carrier` status
+km_fit <- survfit(surv_object ~ apol1_gene_carrier, data = my_dataframe)
+
+# Custom color palette
+custom_palette <- c("#D55E00", "#0072B2") # Bright orange and blue for the two groups
+
+# Calculate uniform whole-number breaks for the x-axis
+start_date <- min(my_dataframe$time_to_event)  # Minimum time
+end_date <- max(my_dataframe$time_to_event)   # Maximum time
+breaks <- round(seq(start_date, end_date, length.out = 5))  # Uniform intervals, rounded to whole numbers
+
+# Enhanced Kaplan-Meier plot with y-axis starting at 0.80 and uniform x-axis breaks
+km_plot <- ggsurvplot(
+  km_fit,
+  data = my_dataframe,
+  pval = TRUE,                        # Display the p-value of the log-rank test
+  pval.coord = c(150, 0.88),          # Position of the p-value annotation
+  conf.int = TRUE,                    # Show confidence intervals
+  conf.int.style = "step",            # Style of confidence intervals
+  risk.table = TRUE,                  # Add risk table below the plot
+  risk.table.col = "strata",          # Color the risk table by strata
+  legend.labs = c("Non-Carrier", "Carrier"),  # Customize legend labels
+  legend.title = "APOL1 G1 and G2 Variant Carrier: ",
+  xlab = "Time (days)",               # Customize the x-axis label
+  ylab = "Survival Probability",      # Customize the y-axis label
+  ylim = c(0.80, 1),                  # Set y-axis limits to start at 0.80
+  ggtheme = theme_minimal(base_size = 14) +   # Use a minimal theme with customization
+    theme(
+      panel.grid.major = element_blank(),    # Remove major grid lines
+      panel.grid.minor = element_blank(),    # Remove minor grid lines
+      panel.border = element_blank(),        # Remove thick plot border
+      axis.title.x = element_text(size = 20, face = "bold"),  # Bold and large x-axis title
+      axis.title.y = element_text(size = 20, face = "bold"),  # Bold and large y-axis title
+      axis.text.x = element_text(size = 17, face = "bold"),   # Bold and large x-axis text
+      axis.text.y = element_text(size = 17, face = "bold"),   # Bold and large y-axis text
+      legend.title = element_text(size = 17, face = "bold"),  # Bold and large legend title
+      legend.text = element_text(size = 17, face = "bold"),   # Bold and large legend text
+      legend.key.size = unit(1.3, "cm")       # Make the legend color bars larger
+    ),
+  palette = custom_palette,                  # Apply custom color palette
+  risk.table.height = 0.3,                   # Adjust risk table size
+  risk.table.y.text = FALSE                  # Simplify risk table layout
+)
+
+# Customize x-axis breaks to show whole-number uniform intervals
+km_plot$plot <- km_plot$plot + 
+  scale_x_continuous(breaks = breaks)  # Apply whole-number breaks
+
+
+# Save the plot to a file
+ggsave("chaper3-apol1.png", km_plot$plot, width = 10, height = 8, dpi = 300)
+```
+
+# Summary
+
+```{r}
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth_apol1.csv")
+
+library(dplyr)
+
+# Count observations for each value in "apol1_gene_carrier" and by "disease_status"
+apol1_summary <- my_dataframe %>%
+  group_by(apol1_gene_carrier, disease_status) %>%
+  summarise(count = n(), .groups = "drop")
+
+# Print summary table
+print(apol1_summary)
+
+# Separate counts for apol1_gene_carrier == 1 and apol1_gene_carrier == 0
+apol1_1_summary <- filter(apol1_summary, apol1_gene_carrier == 1)
+apol1_0_summary <- filter(apol1_summary, apol1_gene_carrier == 0)
+
+cat("\nCounts for apol1_gene_carrier == 1:\n")
+print(apol1_1_summary)
+
+cat("\nCounts for apol1_gene_carrier == 0:\n")
+print(apol1_0_summary)
+
+# Filter my_dataframe to keep only rows where apol1_gene_carrier is 1
+#my_dataframe <- my_dataframe[my_dataframe$apol1_gene_carrier == 1, ]
+
+
+```
+
+### 1. Disease Status Analysis
+
+```{r}
+
+# Disease status distribution
+table(my_dataframe$disease_status)
+barplot(table(my_dataframe$disease_status), main="Disease Status in APOL1 Carriers", xlab="Disease Status", ylab="Frequency")
+
+```
+
+### 2. Descriptive Statistics of Kidney Function Markers
+
+```{r}
+# Summary statistics for kidney function markers
+summary(my_dataframe[, c("eGFR_ckd_epi_2021", "serum_creatinine")])
+
+# Histograms for eGFR values
+hist(my_dataframe$eGFR_MDRD, main="Distribution of eGFR_ckd_epi_2021 in APOL1 Carriers", xlab="eGFR_ckd_epi_2021")
+hist(my_dataframe$eGFR_ckd_epi_2009, main="Distribution of eGFR (serum_creatinine) in APOL1 Carriers", xlab="serum_creatinine")
+
+```
+
+### 3. Analyze Comorbidities Prevalence
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Calculate the total number of individuals
+total_count <- nrow(my_dataframe)
+
+# Create the data frame with counts for comorbidities
+comorbidity_data <- data.frame(
+  Comorbidity = c("Acidosis", "Acute Renal Failure Syndrome", "Anemia", "Essential Hypertension", "Type 2 Diabetes Mellitus"),
+  Count = sapply(c("Acidosis", "Acute.renal.failure.syndrome", "Anemia", "Essential.hypertension", "Type.2.diabetes.mellitus"), 
+                 function(x) sum(my_dataframe[[x]] > 0, na.rm = TRUE))  # Count values greater than 0 as present
+)
+
+# Add ESRD count (disease_status = 1)
+esrd_count <- sum(my_dataframe$disease_status == 1, na.rm = TRUE)
+comorbidity_data <- comorbidity_data %>%
+  add_row(Comorbidity = "End-Stage Renal Disease (ESRD)", Count = esrd_count)
+
+# Calculate CKD stages based on eGFR_ckd_epi_2001
+ckd_counts <- c(
+  "CKD Stage 1" = sum(my_dataframe$eGFR_ckd_epi_2021 >= 90, na.rm = TRUE),
+  "CKD Stage 2" = sum(my_dataframe$eGFR_ckd_epi_2021 >= 60 & my_dataframe$eGFR_ckd_epi_2021 < 90, na.rm = TRUE),
+  "CKD Stage 3a" = sum(my_dataframe$eGFR_ckd_epi_2021 >= 45 & my_dataframe$eGFR_ckd_epi_2021 < 60, na.rm = TRUE),
+  "CKD Stage 3b" = sum(my_dataframe$eGFR_ckd_epi_2021 >= 30 & my_dataframe$eGFR_ckd_epi_2021 < 45, na.rm = TRUE),
+  "CKD Stage 4" = sum(my_dataframe$eGFR_ckd_epi_2021 >= 15 & my_dataframe$eGFR_ckd_epi_2021 < 30, na.rm = TRUE),
+  "CKD Stage 5" = sum(my_dataframe$eGFR_ckd_epi_2021 < 15, na.rm = TRUE)
+)
+
+# Add CKD stages to comorbidity data frame
+for(stage in names(ckd_counts)) {
+  comorbidity_data <- comorbidity_data %>%
+    add_row(Comorbidity = stage, Count = ckd_counts[stage])
+}
+
+# Calculate the percentage and format labels for each row
+comorbidity_data <- comorbidity_data %>%
+  mutate(Percentage = (Count / total_count) * 100,
+         Label = paste0(Count, " (", round(Percentage, 1), "%)"))
+
+# Plot with ggplot2
+ggplot(comorbidity_data, aes(x = reorder(Comorbidity, -Count), y = Count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Prevalence of Selected Conditions, ESRD, and CKD Stages in APOL1 Carriers",
+    x = "Condition",
+    y = "Count"
+  ) +
+  theme_minimal(base_size = 12) +  # Reduce base size for smaller text
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+    axis.title.x = element_text(face = "bold", size = 10),
+    axis.title.y = element_text(face = "bold", size = 10),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    panel.grid.major.y = element_blank(),  # Clean layout for a publication look
+    panel.grid.minor = element_blank()
+  ) +
+  geom_text(aes(label = Label), hjust = -0.2, size = 3)  # Smaller text for labels
+
+# Save plot with specific dimensions for compact layout
+ggsave("comorbidity_ckd_esrd_plot.png", width = 7, height = 5)  # Adjust dimensions as needed
+
+```
+
+### 4. Stratified Analysis by Race and Health Insurance
+
+```{r}
+# Load necessary packages
+library(dplyr)
+library(ggplot2)
+
+# Calculate the number of cases and controls in each race
+race_case_control <- my_dataframe %>%
+  group_by(race, disease_status) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(disease_status = ifelse(disease_status == 1, "Case", "Control"))  # Label cases and controls
+
+# Display the race and case/control count
+print(race_case_control)
+
+# Plot the number of cases and controls in each race
+ggplot(race_case_control, aes(x = race, y = count, fill = disease_status)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Number of Cases and Controls in Each Race",
+    x = "Race",
+    y = "Count",
+    fill = "Status"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  geom_text(aes(label = count), position = position_dodge(width = 0.9), vjust = -0.3, size = 4)  # Add count labels
+
+```
+
+# Cases and controls by health insurance status
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Calculate the counts for each race, health insurance status, and disease status
+race_insurance_case_control <- my_dataframe %>%
+  group_by(race, Health_Insurance_Yes, disease_status) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(
+    disease_status = ifelse(disease_status == 1, "Case", "Control"),
+    Health_Insurance_Yes = ifelse(Health_Insurance_Yes == 1, "Insured", "Uninsured")
+  )
+
+# Calculate the total count within each race and insurance category for percentages
+race_insurance_case_control <- race_insurance_case_control %>%
+  group_by(race, Health_Insurance_Yes) %>%
+  mutate(Percentage = (count / sum(count)) * 100,
+         Label = paste0(count, " (", round(Percentage, 1), "%)")) %>%
+  ungroup()
+
+# Generate the stacked bar plot for each race
+ggplot(race_insurance_case_control, aes(x = race, y = count, fill = disease_status)) +
+  geom_bar(stat = "identity", position = "stack", color = "black") +
+  facet_wrap(~ Health_Insurance_Yes, ncol = 2) +  # Separate by Insured and Uninsured
+  labs(
+    title = "Cases and Controls by Health Insurance Status across Races",
+    x = "Race",
+    y = "Count",
+    fill = "Disease Status"
+  ) +
+  scale_fill_manual(values = c("Case" = "#4C72B0", "Control" = "#DD8452")) +  # Colors for cases and controls
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title.x = element_text(face = "bold", size = 12),
+    axis.title.y = element_text(face = "bold", size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10),
+    panel.grid.major.y = element_blank(),  # Clean layout
+    panel.grid.minor = element_blank()
+  ) +
+  geom_text(aes(label = Label), position = position_stack(vjust = 0.5), size = 3.5)  # Label with count and percentage within bars
+
+# Save plot with specific dimensions for a compact layout
+ggsave("race_insurance_case_control_stacked_plot.png", width = 10, height = 6)
+
+```
+
+# TABLE 1
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(tableone)
+
+# Load the data
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth_cpgrs.csv")
+
+# Prepare the data, interpreting counts as binary (Yes/No) for conditions
+table1_data <- my_dataframe %>%
+  select(
+    race, sex_at_birth, age_precise, Health_Insurance_Yes, Health_Insurance_No,
+    disease_status, BMI, eGFR_ckd_epi_2021, serum_creatinine, smoking,
+    Acidosis, Acute.renal.failure.syndrome, Anemia, Essential.hypertension, Diabetes.mellitus, 
+    Chronic.kidney.disease.stage.3, Chronic.kidney.disease.stage.4,
+    Uses_only_Urgent_care, Uses_only_Doctors_office, Uses_only_Emergency_room, 
+    apol1_gene_carrier, PGS004889
+  ) %>%
+  mutate(
+    # Calculate Health Insurance status based on two columns
+    Health_Insurance = case_when(
+      Health_Insurance_Yes == 1 ~ "Yes",
+      Health_Insurance_No == 1 ~ "No",
+      TRUE ~ "Unknown"
+    ),
+    
+    # Convert disease status to Case/Control
+    Disease_Status = ifelse(disease_status == 1, "Case", "Control"),
+    
+    # Convert apol1_gene_carrier to Yes/No factor
+    apol1_gene_carrier = ifelse(apol1_gene_carrier == 1, "Yes", "No"),
+    
+    # Convert conditions to binary (Yes/No)
+    Acidosis = ifelse(Acidosis > 0, "Yes", "No"),
+    Acute.renal.failure.syndrome = ifelse(Acute.renal.failure.syndrome > 0, "Yes", "No"),
+    Anemia = ifelse(Anemia > 0, "Yes", "No"),
+    Essential.hypertension = ifelse(Essential.hypertension > 0, "Yes", "No"),
+    Diabetes.mellitus = ifelse(Diabetes.mellitus > 0, "Yes", "No"),
+    Chronic.kidney.disease.stage.3 = ifelse(Chronic.kidney.disease.stage.3 > 0, "Yes", "No"),
+    Chronic.kidney.disease.stage.4 = ifelse(Chronic.kidney.disease.stage.4 > 0, "Yes", "No"),
+    Uses_only_Urgent_care = ifelse(Uses_only_Urgent_care > 0, "Yes", "No"),
+    Uses_only_Doctors_office = ifelse(Uses_only_Doctors_office > 0, "Yes", "No"),
+    Uses_only_Emergency_room = ifelse(Uses_only_Emergency_room > 0, "Yes", "No"),
+    
+    # Categorize the polygenic risk score into quartiles
+    PGS_Quartile = cut(PGS004889, 
+                       breaks = quantile(PGS004889, probs = seq(0, 1, 0.25), na.rm = TRUE), 
+                       include.lowest = TRUE, 
+                       labels = c("Q1 (Low)", "Q2", "Q3", "Q4 (High)"))
+  )
+
+# Define categorical and continuous variables for summary with Disease_Status first
+cat_vars <- c("Disease_Status", "race", "sex_at_birth", "Health_Insurance", 
+              "Acidosis", "Acute.renal.failure.syndrome", "Anemia", 
+              "Essential.hypertension", "Diabetes.mellitus", 
+              "Chronic.kidney.disease.stage.3", "Chronic.kidney.disease.stage.4",
+              "Uses_only_Urgent_care", "Uses_only_Doctors_office", "Uses_only_Emergency_room",
+              "apol1_gene_carrier", "PGS_Quartile")
+
+cont_vars <- c("age_precise", "BMI", "eGFR_ckd_epi_2021", "serum_creatinine", "PGS004889")
+
+# Create Table 1 with Disease_Status as the stratification variable
+table1 <- CreateTableOne(vars = c(cat_vars, cont_vars), strata = "Disease_Status", 
+                         data = table1_data, factorVars = cat_vars)
+
+# Print the table with proper formatting
+print(table1, showAllLevels = TRUE, formatOptions = list(big.mark = ",", scientific = FALSE))
+
+```
+
+```{r}
+# Install necessary packages if not already installed
+if (!requireNamespace("tableone", quietly = TRUE)) install.packages("tableone")
+if (!requireNamespace("dplyr", quietly = TRUE)) install.packages("dplyr")
+
+# Load required libraries
+library(tableone)
+library(dplyr)
+
+# Step 1: Load and prepare data
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth_cpgrs.csv")
+
+# Step 2: Convert count variables to binary (1 if >0, 0 if 0 or NA)
+count_vars <- c("Acidosis", "Acute.renal.failure.syndrome", "Anemia", 
+                "Anemia.in.chronic.kidney.disease", 
+                "Atherosclerosis.of.coronary.artery.without.angina.pectoris", 
+                "Chronic.kidney.disease.stage.3", "Chronic.kidney.disease.stage.4", 
+                "Congestive.heart.failure", "Diabetes.mellitus", 
+                "Disorder.of.kidney.and.or.ureter", "Disorder.of.muscle", 
+                "Essential.hypertension", "Gout", "Hyperkalemia", 
+                "Hypothyroidism", "Iron.deficiency.anemia", 
+                "Peripheral.vascular.disease", "Polyneuropathy.due.to.diabetes.mellitus", 
+                "Proteinuria", "Renal.disorder.due.to.type.2.diabetes.mellitus", 
+                "Systemic.lupus.erythematosus", "Transplanted.kidney.present", 
+                "Type.2.diabetes.mellitus", "apol1_gene_carrier")
+
+# Convert count variables to binary (1 if >0, 0 if 0 or NA)
+my_dataframe[count_vars] <- lapply(my_dataframe[count_vars], function(x) ifelse(is.na(x) | x == 0, 0, 1))
+
+# Step 3: Define categorical and continuous variables
+categorical_vars <- c("race", "sex_at_birth", "ethnicity", "Health_Insurance", 
+                      "apol1_gene_carrier", "smoking", "Uses_only_Urgent_care", 
+                      "Uses_only_Doctors_office", "Uses_only_Emergency_room")
+
+continuous_vars <- c("age_precise", "BMI", "Creatinine..Mass.volume..in.Body.fluid", 
+                     "Hemoglobin.A1c.Hemoglobin.total.in.Blood", "Ferritin..Mass.volume..in.Serum.or.Plasma", 
+                     "Iron..Mass.volume..in.Serum.or.Plasma", "Iron.binding.capacity..Mass.volume..in.Serum.or.Plasma",
+                     "Iron.saturation..Mass.Fraction..in.Serum.or.Plasma", "Parathyrin.intact..Mass.volume..in.Serum.or.Plasma", 
+                     "Triglyceride..Mass.volume..in.Serum.or.Plasma", "Systolic.blood.pressure", 
+                     "serum_creatinine", "eGFR_MDRD", "eGFR_ckd_epi_2009", "eGFR_ckd_epi_2021", 
+                     "C_Polygenic_Risk_Score")
+
+# Step 4: Create Table 1
+table1_vars <- c(categorical_vars, continuous_vars)
+stratifying_var <- "disease_status"
+
+# Create the table using the `CreateTableOne` function
+table1 <- CreateTableOne(vars = table1_vars, 
+                         strata = stratifying_var, 
+                         data = my_dataframe, 
+                         factorVars = categorical_vars)
+
+# Step 5: Print Table 1 with nonparametric test
+print(table1, nonnormal = continuous_vars, quote = TRUE, noSpaces = TRUE)
+
+```
+
+# Polygenic Risk Score
+
+```{r}
+# Assuming each dataset (my_dataframe_afr, my_dataframe_amr, etc.) is already loaded in your environment
+
+# Combine all datasets into one dataframe
+polygenic_risk_score <- rbind(my_dataframe_afr, my_dataframe_amr, my_dataframe_eas, my_dataframe_eur)
+
+# # Load the tidyr library
+# library(tidyr)
+# 
+# # Split the single column into multiple columns based on the separator (.)
+# polygenic_risk_score <- separate(
+#   polygenic_risk_score,
+#   col = "FID.IID.PGS002757.PGS003988.PGS004004.PGS004016.PGS004030.PGS004045.PGS004058.PGS004074.PGS004088.PGS004101.PGS004112.PGS004128.PGS004142.PGS004158.PGS004889",
+#   into = c("FID", "IID", "PGS002757", "PGS003988", "PGS004004", "PGS004016", 
+#            "PGS004030", "PGS004045", "PGS004058", "PGS004074", "PGS004088", 
+#            "PGS004101", "PGS004112", "PGS004128", "PGS004142", "PGS004158", 
+#            "PGS004889"),
+#   sep = "\\."  # Use dot as the separator
+# )
+
+# Verify the result
+colnames(polygenic_risk_score)
+
+
+# Optionally, write the combined dataframe to a file if needed
+write.csv(polygenic_risk_score, "polygenic_risk_score.csv", row.names = FALSE)
+
+
+```
+
+## Data Wrangling
+
+Number of matching person_id: 105959
+
+```{r}
+#polygenic_risk_score <- read.csv("polygenic_risk_score.csv")
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth_apol1.csv")
+
+
+polygenic_risk_score <- read.csv("polygenic_risk_score.csv")
+
+
+# Check if "person_id" exists in my_dataframe
+if ("person_id" %in% colnames(my_dataframe)) {
+  # Count the number of matches between polygenic_risk_score$IID and my_dataframe$person_id
+  matching_count <- sum(polygenic_risk_score$IID %in% my_dataframe$person_id)
+  
+  # Print the result
+  cat("Number of matching IDs between polygenic_risk_score$IID and my_dataframe$person_id:", matching_count, "\n")
+} else {
+  cat("The column 'person_id' does not exist in my_dataframe.\n")
+}
+
+
+
+# Assuming you have two dataframes: my_dataframe and polygenic_risk_score
+# And that my_dataframe has a column named "person_id" that matches polygenic_risk_score$IID
+
+# Rename person_id to IID in my_dataframe to facilitate matching
+my_dataframe$IID <- my_dataframe$person_id
+
+# Perform a left join to get the matching rows and selected columns from polygenic_risk_score
+merged_dataframe <- merge(
+  my_dataframe, 
+  polygenic_risk_score[, c("FID", "IID", "PGS002757", "PGS003988", "PGS004004", 
+                           "PGS004016", "PGS004030", "PGS004045", "PGS004058", 
+                           "PGS004074", "PGS004088", "PGS004101", "PGS004112", 
+                           "PGS004128", "PGS004142", "PGS004158", "PGS004889")], 
+  by = "IID", 
+  all.x = TRUE
+)
+
+# View the merged dataframe
+print(merged_dataframe)
+
+
+
+# List of column names to check for NA values
+columns_to_check <- c("FID", "PGS002757", "PGS003988", "PGS004004", "PGS004016", 
+                      "PGS004030", "PGS004045", "PGS004058", "PGS004074", 
+                      "PGS004088", "PGS004101", "PGS004112", "PGS004128", 
+                      "PGS004142", "PGS004158", "PGS004889")
+
+# Initialize a list to store results
+na_counts <- list()
+
+# Loop through each column to check for NA values
+for (col in columns_to_check) {
+  # Count total NA values in the column
+  total_na <- sum(is.na(merged_dataframe[[col]]))
+  
+  # Count NA values in the column where disease_status == 1
+  na_disease_1 <- sum(is.na(merged_dataframe[[col]]) & merged_dataframe$disease_status == 1)
+  
+  # Count NA values in the column where disease_status == 0
+  na_disease_0 <- sum(is.na(merged_dataframe[[col]]) & merged_dataframe$disease_status == 0)
+  
+  # Store the counts in the list
+  na_counts[[col]] <- list(total_na = total_na, disease_1 = na_disease_1, disease_0 = na_disease_0)
+}
+
+# Display the results
+print(na_counts)
+
+
+
+# Remove rows with NA values in the specified columns
+filtered_dataframe <- merged_dataframe[!rowSums(is.na(merged_dataframe[columns_to_check])) > 0, ]
+
+# Count and print the number of NA values in each specified column
+na_counts <- sapply(filtered_dataframe[columns_to_check], function(col) sum(is.na(col)))
+
+# Display the result
+print(na_counts)
+
+# Verify that there are no NA values in the specified columns
+na_counts_filtered <- sapply(filtered_dataframe[columns_to_check], function(col) sum(is.na(col)))
+print(na_counts_filtered)
+
+
+# Optionally, write the combined dataframe to a file if needed
+write.csv(merged_dataframe, "my_dataframe_insured_routinehealth_apol1_polygenic_risk_score_unfiltered.csv", row.names = FALSE)
+
+
+```
+
+# Cox Model
+
+## PCA
+
+```{r}
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth_apol1_polygenic_risk_score.csv")
+
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+
+# Sample dataset 'my_dataframe' assumed, where each column is one of the PGS scores
+# and 'person_id' is the identifier for each individual
+
+# List of polygenic score columns
+pgs_columns <- c("PGS002757", "PGS003988", "PGS004004", "PGS004016", 
+                 "PGS004030", "PGS004045", "PGS004058", "PGS004074", 
+                 "PGS004088", "PGS004101", "PGS004112", "PGS004128", 
+                 "PGS004142", "PGS004158", "PGS004889")
+
+# Standardize each PGS column (z-score normalization)
+my_dataframe <- my_dataframe %>%
+  mutate(across(all_of(pgs_columns), scale))
+
+# Perform PCA on the standardized PGS columns
+pca_result <- prcomp(my_dataframe %>% select(all_of(pgs_columns)), center = TRUE, scale. = TRUE)
+
+# Extract the first principal component (PC1) as the Composite Polygenic Risk Score (CPRS)
+my_dataframe <- my_dataframe %>%
+  mutate(C_Polygenic_Risk_Score = pca_result$x[, 1])
+
+# Create the Health_Insurance variable as a factor with "Yes", "No", and "Unknown"
+my_dataframe <- my_dataframe %>%
+  mutate(
+    Health_Insurance = case_when(
+      Health_Insurance_Yes == 1 ~ "Yes",
+      Health_Insurance_No == 1 ~ "No",
+      TRUE ~ "Unknown"  # Assign "Unknown" where neither condition is met
+    ),
+    # Convert to factor with specified levels
+    Health_Insurance = factor(Health_Insurance, levels = c("No", "Yes", "Unknown"))
+  )
+
+
+# Optionally, write the combined dataframe to a file if needed
+write.csv(my_dataframe, "my_dataframe_insured_routinehealth_cpgrs.csv", row.names = FALSE)
+
+
+```
+
+# Data preprocessing
+
+```{r}
+library(tidyr)
+# Load necessary libraries
+library(dplyr)
+library(knitr)
+library(knitr) # For kable to display tables nicely
+
+
+# # Chapter 2 Data
+#my_dataframe <- read.csv("my_dataframe_labs_socioeconomic.csv")
+
+
+#Chapter 3 Data
+my_dataframe <- read.csv("my_dataframe_insured_routinehealth_cpgrs.csv")
+my_dataframe$Health_Insurance <- factor(my_dataframe$Health_Insurance, levels = c(0, 1, 2), labels = c("No", "Yes", "Unknown"))
+
+
+# Create eGFR CKD stages as a categorical variable
+# Define CKD stages with numeric levels
+# Create the numeric levels for CKD stages and convert them to a factor
+# my_dataframe$eGFR_ckd_epi_2021_stage <- factor(
+#   cut(
+#     my_dataframe$eGFR_ckd_epi_2021,
+#     breaks = c(-Inf, 15, 30, 60, 90, Inf),  # CKD stage thresholds
+#     labels = c(1, 2, 3, 4, 5),              # Numeric levels as labels
+#     include.lowest = TRUE
+#   )
+# )
+
+# Rename the column using dplyr's rename function
+my_dataframe <- my_dataframe %>%
+  rename(`Coronary.artery.disease` = `Atherosclerosis.of.coronary.artery.without.angina.pectoris`)
+
+
+# Combine the two columns into a new column "Anemia"
+my_dataframe$Anaemia <- my_dataframe$Anemia.in.chronic.kidney.disease + my_dataframe$Anemia + my_dataframe$Iron.deficiency.anemia
+
+
+# Convert Health_Insurance to a factor with specified levels
+# my_dataframe$Health_Insurance <- factor(my_dataframe$Health_Insurance, levels = c("No", "Yes", "Unknown"))
+
+# # Convert the factor to a numeric variable
+# my_dataframe$Health_Insurance <- as.numeric(my_dataframe$Health_Insurance)
+
+
+
+# Convert raceBlack to a factor with labels "Non-Black" and "Black"
+my_dataframe$racial_identity <- factor(my_dataframe$raceBlack, levels = c(0, 1), labels = c("Non-Black", "Black"))
+
+
+# # # Create eGFR CKD stages as a categorical variable
+# my_dataframe$eGFR_ckd_epi_2021_stage <- factor(
+#   cut(
+#     my_dataframe$eGFR_ckd_epi_2021,
+#     breaks = c(-Inf, 15, 30, 60, 90, Inf),
+#     labels = c("CKD Stage 5", "CKD Stage 4", "CKD Stage 3", "CKD Stage 2", "CKD Stage 1"),
+#     include.lowest = TRUE
+#   )
+# )
+
+
+# my_dataframe$eGFR_ckd_epi_2021_stage <- cut(
+#   my_dataframe$eGFR_ckd_epi_2021,
+#   breaks = c(-Inf, 15, 30, 60, 90, Inf),  # Define breakpoints for each CKD stage
+#   labels = c("CKD Stage 5", "CKD Stage 4", "CKD Stage 3", "CKD Stage 2", "CKD Stage 1"),  # Label each CKD stage
+#   include.lowest = TRUE
+# )
+
+
+# # List of column names to check for NA values
+# columns_to_check <- c("FID", "PGS002757", "PGS003988", "PGS004004", "PGS004016", 
+#                       "PGS004030", "PGS004045", "PGS004058", "PGS004074", 
+#                       "PGS004088", "PGS004101", "PGS004112", "PGS004128", 
+#                       "PGS004142", "PGS004158", "PGS004889")
+# 
+# # Count and print the number of NA values in each specified column
+# na_counts <- sapply(my_dataframe[columns_to_check], function(col) sum(is.na(col)))
+# 
+# # Display the result
+# print(na_counts)
+
+
+# Filter `my_dataframe` to include only observations with a positive `time_to_event`
+# Step 1: Filter for time_to_event > 0
+my_dataframe <- my_dataframe[my_dataframe$time_to_event > 0, ]
+
+# Step 2: Filter for eGFR_ckd_epi_2021 < 60
+my_dataframe <- my_dataframe[my_dataframe$eGFR_ckd_epi_2021 < 60, ]
+
+# Step 3: Filter to remove rows with NA in the BMI column
+#my_dataframe <- my_dataframe[!is.na(my_dataframe$Systolic.blood.pressure), ]
+#my_dataframe <- my_dataframe[!is.na(my_dataframe$BMI), ]
+
+
+  
+# Define the columns to remove
+col_remove <- c(
+  # Highly correlated variable/ redundant variables
+  "height",
+  "weight", 
+  "highest_smoking_status_rank", 
+  "Complication.of.renal.dialysis", 
+  "eGFR_MDRD", "eGFR_ckd_epi_2009", 
+  "Glomerular.filtration.rate.1.73.sq.M.predicted..Volume.Rate.Area..in.Serum..Plasma.or.Blood.by.Creatinine.based.formula..MDRD.", 
+  "Hypertensive.heart.and.chronic.kidney.disease", 
+  "Acute.renal.failure.syndrome",
+  "Disorder.of.kidney.and.or.ureter",
+  "unknown_if_insured",
+  
+  # Multicolinear variables at 0.7
+  "Iron.binding.capacity..Mass.volume..in.Serum.or.Plasma",
+  "Iron.saturation..Mass.Fraction..in.Serum.or.Plasma",
+  "serum_creatinine",
+  
+  # Not significant at p <= 0.25 when population restricted to eGFR < 60 with full sample BMI and systolic blood pressure
+  # "Systemic.lupus.erythematosus",
+  # "Anemia",
+  # "Disorder.of.muscle",
+  # ""
+  
+  
+  
+  # Tian multicolinearity
+  'gender',
+  'person_id', "IID",
+  'date_of_birth',
+  'index_date',
+  'censored_date',
+  'event_date',
+  'age_reported',
+  'disease_date',
+  'Nephrectomy',
+  'Hemodialysis',
+  'event_type',
+  'End-stage renal disease',
+  'Chronic renal failure', 'Chronic.kidney.disease.stage.4',
+  "Transplanted.kidney.present",
+  "Acute.glomerulonephritis",
+  "Hemoglobin.A1c.Hemoglobin.total.in.Blood",
+  
+  #causes convergence issue
+  "Ferritin..Mass.volume..in.Serum.or.Plasma",
+  "Uses_only_Urgent_care",
+  "Uses_only_Doctors_office",
+  "Uses_only_Emergency_room",
+  "Unknown_Routine_Health_Visit",
+  
+  
+  # Labs
+  "Iron..Mass.volume..in.Serum.or.Plasma", 
+  "Triglyceride..Mass.volume..in.Serum.or.Plasma", 
+  "Parathyrin.intact..Mass.volume..in.Serum.or.Plasma", 
+  "Protein..Mass.volume..in.Urine", 
+  "Creatinine..Mass.volume..in.Body.fluid", 
+  "Erythrocyte.distribution.width..Ratio..by.Automated.count", 
+  "Ferritin..Mass.volume..in.Serum.or.Plasma", 
+  "Hemoglobin.A1c.Hemoglobin.total.in.Blood", 
+  "Hepatitis.B.virus.surface.Ag..Presence..in.Serum.or.Plasma.by.Immunoassay", 
+  "Iron.binding.capacity..Mass.volume..in.Serum.or.Plasma", 
+  "Iron.saturation..Mass.Fraction..in.Serum.or.Plasma", 
+  "serum_creatinine"
+
+  
+)
+
+
+
+# Remove specified columns from `my_dataframe`
+my_dataframe <- my_dataframe[, !(names(my_dataframe) %in% col_remove)]
+
+
+# Check if `person_id` is available for merging; if not, create row numbers as IDs
+if (!"person_id" %in% colnames(my_dataframe)) {
+  my_dataframe <- my_dataframe %>% mutate(person_id = row_number())
+}
+
+# Separate "Asian" individuals, who will always go into the test data
+asian_data <- my_dataframe %>% filter(race == "Asian")
+
+# Filter data to create training data with `eGFR_ckd_epi_2021 < 60` for Black and White individuals
+train_data <- my_dataframe %>% 
+  filter(race %in% c("Black or African American", "White"))
+# & eGFR_ckd_epi_2021 < 60
+
+# Separate the remaining data (full range of eGFR) for test data, including all Asian individuals
+test_data <- my_dataframe %>% anti_join(train_data, by = "person_id") %>% bind_rows(asian_data)
+
+# Separate training data by race for custom sampling
+black_train_data <- train_data %>% filter(race == "Black or African American")
+white_train_data <- train_data %>% filter(race == "White")
+
+# Separate test data by race for custom sampling
+black_test_data <- test_data %>% filter(race == "Black or African American")
+white_test_data <- test_data %>% filter(race == "White")
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Sample 70% of Black or African American and White from train data for training
+black_train <- black_train_data %>% sample_frac(0.7)
+white_train <- white_train_data %>% sample_frac(0.7)
+
+# Use the remaining 30% of Black or African American and White individuals in train data as additional test data
+black_test <- anti_join(black_train_data, black_train, by = "person_id")
+white_test <- anti_join(white_train_data, white_train, by = "person_id")
+
+# Combine training data from sampled Black and White individuals
+train_data <- bind_rows(black_train, white_train) %>%
+  mutate(raceAsian = 0)  # Add dummy variable `raceAsian` with 0 for all rows in train data
+
+# Combine test data from remaining train data individuals and all unrestricted test data (including all Asian data)
+test_data <- bind_rows(black_test, white_test, asian_data, black_test_data, white_test_data) %>%
+  mutate(raceAsian = if_else(race == "Asian", 1, 0))
+
+# Calculate race-specific counts for cases and controls in train and test sets
+train_race_case_control <- train_data %>%
+  group_by(race, disease_status) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  pivot_wider(names_from = disease_status, values_from = Count, values_fill = list(Count = 0)) %>%
+  rename(Cases = `1`, Controls = `0`)
+
+test_race_case_control <- test_data %>%
+  group_by(race, disease_status) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  pivot_wider(names_from = disease_status, values_from = Count, values_fill = list(Count = 0)) %>%
+  rename(Cases = `1`, Controls = `0`)
+
+# Add Set column and combine train and test results
+train_race_case_control <- train_race_case_control %>% mutate(Set = "Train")
+test_race_case_control <- test_race_case_control %>% mutate(Set = "Test")
+
+# Create a summary table for train and test case/control counts by race
+race_case_control_table <- bind_rows(train_race_case_control, test_race_case_control)
+
+# Print the case/control summary table
+cat("Race Case-Control Counts:\n")
+print(kable(race_case_control_table, format = "markdown"))
+
+# Calculate dimensions for train and test sets
+dimension_table <- data.frame(
+  Set = c("Train", "Test"),
+  Rows = c(nrow(train_data), nrow(test_data)),
+  Columns = c(ncol(train_data), ncol(test_data))
+)
+
+# Display the dimension table
+cat("\nDimension Table:\n")
+print(kable(dimension_table, format = "markdown"))
+
+
+# Calculate race proportions in the train dataset
+train_race_counts <- table(train_data$race)
+train_race_proportion <- data.frame(
+  Set = "Train",
+  Race = names(train_race_counts),
+  Count = as.numeric(train_race_counts),
+  Proportion = as.numeric(train_race_counts) / sum(train_race_counts) * 100
+)
+
+# Calculate race proportions in the test dataset
+test_race_counts <- table(test_data$race)
+test_race_proportion <- data.frame(
+  Set = "Test",
+  Race = names(test_race_counts),
+  Count = as.numeric(test_race_counts),
+  Proportion = as.numeric(test_race_counts) / sum(test_race_counts) * 100
+)
+
+# Combine the train and test race proportions into a single table
+race_proportion_table <- rbind(train_race_proportion, test_race_proportion)
+
+# Print the race proportion table
+cat("Race Proportion Table (Train and Test):\n")
+print(race_proportion_table)
+
+```
+
+###### One variable cox: train data
+
+```{r}
+
+
+# # Convert PGS columns to numeric if they are not already
+# predictor_vars <- c("PGS002757", "PGS003988", "PGS004004", "PGS004016", 
+#                     "PGS004030", "PGS004045", "PGS004058", "PGS004074", 
+#                     "PGS004088", "PGS004101", "PGS004112", "PGS004128", 
+#                     "PGS004142", "PGS004158", "PGS004889")
+# 
+# train_data[predictor_vars] <- lapply(train_data[predictor_vars], as.numeric)
+# 
+
+
+# Set a seed for reproducibility
+set.seed(123)  # Use any integer you like; this ensures reproducibility of random processes
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+
+# Cap time_to_event at 2 years (730 days) for those who have not experienced the event
+train_data <- train_data %>%
+  mutate(
+    time_to_event = pmin(time_to_event, 5 * 365.25),  # Cap time_to_event at 730 days
+    disease_status = ifelse(time_to_event >= 5 * 365.25, 0, disease_status)  # Censor if event occurs after 2 years
+  )
+
+# Replace all NA values in train_data with 0 (considering if this is appropriate for all variables)
+train_data[is.na(train_data)] <- 0
+
+# Verify that there are no NA values left in the dataset
+cat("Number of NA values in dataset after replacement:", sum(is.na(train_data)), "\n")  # This should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome, time-to-event, ID, and categorical variables like race)
+predictor_vars <- setdiff(names(train_data), c("time_to_event", "disease_status", "person_id", "race", "eGFR_ckd_epi_2021_stage"))
+
+# Transform numeric variables and convert binary variables to factors
+train_data <- train_data %>%
+  mutate(across(all_of(predictor_vars), ~ {
+    if (is.numeric(.)) {
+      scale(log(. + 1))  # Apply log(x + 1) transformation and scale
+    } else if (n_distinct(.) == 2) {
+      as.factor(.)  # Convert binary variables to factors
+    } else {
+      .  # Leave other types as is
+    }
+  }))
+
+# Initialize an empty data frame to store results
+cox_results <- data.frame(Variable = character(),
+                          p_value = numeric(),
+                          Significance = character(),
+                          stringsAsFactors = FALSE)
+
+# Run Cox PH model for each variable individually
+for (var in predictor_vars) {
+  # Check that the variable is either numeric or factor and has more than one unique value
+  if ((is.numeric(train_data[[var]]) || is.factor(train_data[[var]])) && length(unique(train_data[[var]])) > 1) {
+    # Dynamically create the formula for Cox model
+    formula <- as.formula(paste("Surv(time_to_event, disease_status) ~", var))
+    
+    # Fit Cox model with one variable at a time and handle warnings/errors
+    tryCatch({
+      cox_model <- coxph(formula, data = train_data)
+      p_val <- summary(cox_model)$coefficients[,"Pr(>|z|)"]
+      
+      # Check if p-value <= 0.10 for significance
+      signif <- ifelse(p_val <= 0.10, "*", "")
+      
+      # Append results to the results data frame
+      cox_results <- rbind(cox_results, data.frame(Variable = var, 
+                                                   p_value = p_val, 
+                                                   Significance = signif))
+    }, warning = function(w) {
+      cat("Warning for variable:", var, "-", conditionMessage(w), "\n")
+    }, error = function(e) {
+      cat("Error for variable:", var, "-", conditionMessage(e), "\n")
+    })
+  } else {
+    message(paste("Skipping variable:", var, "- not numeric/factor or has no variation."))
+  }
+}
+
+# Arrange results by p-value in ascending order (most significant first)
+cox_results <- cox_results[order(cox_results$p_value), ]
+
+# Print the sorted results table with most significant variables first
+print(cox_results)
+
+```
+
+###### One variable cox: test data
+
+```{r}
+# Set a seed for reproducibility
+set.seed(123)  # Use any integer to enforce reproducibility of random processes
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+
+# Cap time_to_event at 2 years (730 days) for those who have not experienced the event
+test_data <- test_data %>%
+  mutate(
+    time_to_event = pmin(time_to_event, 5 * 365.25),  # Cap time_to_event at 730 days
+    disease_status = ifelse(time_to_event >= 5 * 365.25, 0, disease_status)  # Censor if event occurs after 2 years
+  )
+
+# Replace all NA values in test_data with 0 (considering if this is appropriate for all variables)
+test_data[is.na(test_data)] <- 0
+
+# Verify that there are no NA values left in the dataset
+cat("Number of NA values in dataset after replacement:", sum(is.na(test_data)), "\n")  # This should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome, time-to-event, ID, and categorical variables like race)
+predictor_vars <- setdiff(names(test_data), c("time_to_event", "disease_status", "person_id", "race", "eGFR_ckd_epi_2021_stage"))
+
+# Transform numeric variables and convert binary variables to factors
+test_data <- test_data %>%
+  mutate(across(all_of(predictor_vars), ~ {
+    if (is.numeric(.)) {
+      scale(log(. + 1))  # Apply log(x + 1) transformation and scale
+    } else if (n_distinct(.) == 2) {
+      as.factor(.)  # Convert binary variables to factors
+    } else {
+      .  # Leave other types as is
+    }
+  }))
+
+# Initialize an empty data frame to store results
+cox_results <- data.frame(Variable = character(),
+                          p_value = numeric(),
+                          Significance = character(),
+                          stringsAsFactors = FALSE)
+
+# Run Cox PH model for each variable individually
+for (var in predictor_vars) {
+  # Check that the variable is either numeric or factor and has more than one unique value
+  if ((is.numeric(test_data[[var]]) || is.factor(test_data[[var]])) && length(unique(test_data[[var]])) > 1) {
+    # Dynamically create the formula for Cox model
+    formula <- as.formula(paste("Surv(time_to_event, disease_status) ~", var))
+    
+    # Fit Cox model with one variable at a time and handle warnings/errors
+    tryCatch({
+      cox_model <- coxph(formula, data = test_data)
+      p_val <- summary(cox_model)$coefficients[,"Pr(>|z|)"]
+      
+      # Check if p-value <= 0.10 for significance
+      signif <- ifelse(p_val <= 0.10, "*", "")
+      
+      # Append results to the results data frame
+      cox_results <- rbind(cox_results, data.frame(Variable = var, 
+                                                   p_value = p_val, 
+                                                   Significance = signif))
+    }, warning = function(w) {
+      cat("Warning for variable:", var, "-", conditionMessage(w), "\n")
+    }, error = function(e) {
+      cat("Error for variable:", var, "-", conditionMessage(e), "\n")
+    })
+  } else {
+    message(paste("Skipping variable:", var, "- not numeric/factor or has no variation."))
+  }
+}
+
+# Arrange results by p-value in ascending order (most significant first)
+cox_results <- cox_results[order(cox_results$p_value), ]
+
+# Print the sorted results table with most significant variables first
+print(cox_results)
+
+```
+
+#### Feature selection one variable significance
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(survival)
+
+# Set a seed for reproducibility
+set.seed(123)
+
+# Step 1: Cap `time_to_event` and adjust censoring status
+train_data <- train_data %>%
+  mutate(
+    time_to_event = pmin(time_to_event, 2 * 365.25),
+    disease_status = ifelse(time_to_event >= 2 * 365.25, 0, disease_status)
+  )
+
+# Step 2: Replace NA values with column medians for numeric variables, and mode for factors
+train_data <- train_data %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .))) %>%
+  mutate(across(where(is.factor), ~ ifelse(is.na(.), as.character(names(sort(table(.), decreasing = TRUE)[1])), .))) %>%
+  mutate(across(where(is.character), as.factor))
+
+# Verify there are no NA values left
+cat("Number of NA values in dataset after replacement:", sum(is.na(train_data)), "\n")
+
+# Step 3: Re-check that there are both events (1) and censored cases (0)
+if (length(unique(train_data$disease_status)) < 2) {
+  stop("Error: No events (disease_status == 1) or only censored cases left in the data.")
+}
+
+# Step 4 and 5: Identify predictor variables
+predictor_vars <- setdiff(names(train_data), c("time_to_event", "disease_status", "person_id", "race"))
+
+
+
+# Initialize an empty data frame to store results
+cox_results <- data.frame(Variable = character(), p_value = numeric(), Significance = character())
+
+# Step 6: Run Cox PH model for each variable individually with error handling
+for (var in predictor_vars) {
+  # Check that variable has more than one unique value and non-zero variance
+  if (length(unique(train_data[[var]])) > 1) {
+    formula <- as.formula(paste("Surv(time_to_event, disease_status) ~", var))
+    
+    # Fit Cox model with error handling
+    tryCatch({
+      cox_model <- coxph(formula, data = train_data)
+      p_val <- summary(cox_model)$coefficients[,"Pr(>|z|)"]
+      
+      # Check if p-value <= 0.10 for significance
+      signif <- ifelse(p_val <= 0.10, "*", "")
+      
+      # Append results to the results data frame
+      cox_results <- rbind(cox_results, data.frame(Variable = var, p_value = p_val, Significance = signif))
+    }, warning = function(w) {
+      cat("Warning for variable:", var, "-", conditionMessage(w), "\n")
+    }, error = function(e) {
+      cat("Error for variable:", var, "-", conditionMessage(e), "\n")
+    })
+  } else {
+    cat("Skipping variable:", var, "- No variation or constant values.\n")
+  }
+}
+
+# Step 7: Sort and display results
+cox_results <- cox_results[order(cox_results$p_value), ]
+print(cox_results)
+```
+
+# Test for multicolinearity
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(corrr)
+library(knitr)
+library(kableExtra)
+
+# Assuming filtered_person_with_summary is the dataset after filtration
+filtered_person_with_summary <- train_data
+
+# Step 1: Select only numeric columns and identify columns with non-zero variance
+numeric_columns <- sapply(filtered_person_with_summary, is.numeric)
+filtered_data_numeric <- filtered_person_with_summary[, numeric_columns]  # Select only numeric columns
+
+# Identify columns with non-zero variance and keep them
+non_zero_variance_columns <- which(sapply(filtered_data_numeric, sd, na.rm = TRUE) > 0)
+
+# Check if there are any columns with non-zero variance
+if (length(non_zero_variance_columns) > 0) {
+  filtered_data_no_constant <- filtered_data_numeric[, non_zero_variance_columns]  # Keep only columns with non-zero variance
+} else {
+  cat("All numeric columns have zero variance.\n")
+  filtered_data_no_constant <- NULL
+}
+
+# Continue with correlation calculation only if there are non-constant columns
+if (!is.null(filtered_data_no_constant) && ncol(filtered_data_no_constant) > 1) {
+  # Step 2: Calculate the correlation matrix for the filtered dataset
+  correlation_matrix <- correlate(filtered_data_no_constant, method = "pearson", use = "pairwise.complete.obs")
+  
+  # Step 3: Identify pairs of variables with high correlations (e.g., |correlation| > 0.7)
+  highly_correlated_pairs <- correlation_matrix %>%
+    stretch() %>%  # Convert the correlation matrix into a long format
+    filter(abs(r) > 0.7, r != 1) %>%  # Keep only pairs with |correlation| > 0.7 and not self-correlation
+    mutate(pair = paste(pmin(x, y), pmax(x, y), sep = "_")) %>%  # Create a unique identifier for pairs
+    distinct(pair, .keep_all = TRUE)  # Remove duplicates (e.g., (x,y) and (y,x))
+
+  # Remove the auxiliary 'pair' column using base R if `select` fails
+  if ("pair" %in% colnames(highly_correlated_pairs)) {
+    highly_correlated_pairs <- highly_correlated_pairs[, !colnames(highly_correlated_pairs) %in% "pair"]
+  }
+
+  # Step 4: Prepare the table for the number of observations for each correlated pair
+  if (nrow(highly_correlated_pairs) > 0) {
+    result_table <- data.frame(
+      `Variable 1` = character(),
+      `Variable 2` = character(),
+      `Correlation` = numeric(),
+      `Cases (Var 1)` = integer(),
+      `Controls (Var 1)` = integer(),
+      `Cases (Var 2)` = integer(),
+      `Controls (Var 2)` = integer(),
+      stringsAsFactors = FALSE
+    )
+    
+    for (i in 1:nrow(highly_correlated_pairs)) {
+      var1 <- highly_correlated_pairs$x[i]
+      var2 <- highly_correlated_pairs$y[i]
+      correlation <- highly_correlated_pairs$r[i]
+      
+      # Number of non-zero cases (disease_status == 1) and non-zero controls (disease_status == 0) for var1
+      cases_var1 <- sum(filtered_person_with_summary$disease_status == 1 & 
+                        filtered_person_with_summary[[var1]] != 0 & !is.na(filtered_person_with_summary[[var1]]))
+      controls_var1 <- sum(filtered_person_with_summary$disease_status == 0 & 
+                           filtered_person_with_summary[[var1]] != 0 & !is.na(filtered_person_with_summary[[var1]]))
+      
+      # Number of non-zero cases (disease_status == 1) and non-zero controls (disease_status == 0) for var2
+      cases_var2 <- sum(filtered_person_with_summary$disease_status == 1 & 
+                        filtered_person_with_summary[[var2]] != 0 & !is.na(filtered_person_with_summary[[var2]]))
+      controls_var2 <- sum(filtered_person_with_summary$disease_status == 0 & 
+                           filtered_person_with_summary[[var2]] != 0 & !is.na(filtered_person_with_summary[[var2]]))
+      
+      # Add the results to the table
+      result_table <- rbind(result_table, data.frame(
+        `Variable 1` = var1,
+        `Variable 2` = var2,
+        `Correlation` = round(correlation, 2),  # Round correlation to 2 decimal places
+        `Cases (Var 1)` = cases_var1,
+        `Controls (Var 1)` = controls_var1,
+        `Cases (Var 2)` = cases_var2,
+        `Controls (Var 2)` = controls_var2
+      ))
+    }
+    
+    # Print the result table with formatting for publication
+    print(result_table)
+  } else {
+    cat("No highly correlated variable pairs found (|correlation| > 0.7).\n")
+  }
+} else {
+  cat("No numeric columns with non-zero variance found for correlation analysis.\n")
+}
+
+# Print the column names of the original dataset
+print(colnames(filtered_person_with_summary))
+
+```
+
+# **Stepwise Selection**: Using `stepAIC`
+
+```{r}
+# Define the lab-free variables as a vector of column names
+
+cox_formula_lab_free <- c(
+  "eGFR_ckd_epi_2021", 
+  "age_precise", 
+  "sex_at_birth", 
+  
+  #"Anemia.in.chronic.kidney.disease", 
+  #"Anemia",
+  #"Iron.deficiency.anemia",
+  "Anaemia",
+  "Hyperkalemia", 
+  "Acidosis",
+  "Peripheral.vascular.disease",
+  "Type.2.diabetes.mellitus",
+  "Congestive.heart.failure",
+  "Atherosclerosis.of.coronary.artery.without.angina.pectoris",
+  "Diabetes.mellitus",
+  "BMI",
+  "Essential.hypertension",
+  "Proteinuria",
+  "Systolic.blood.pressure",
+  "smoking",
+  
+  "racial_identity", 
+  "ethnicity",
+  
+  "apol1_gene_carrier",
+  "PGS004889",
+  
+  "Health_Insurance_Yes",
+   "Health_Insurance_No" 
+  
+  
+  
+)
+
+
+
+
+
+
+
+# Significant at 0.10
+# cox_formula_lab_free  <- c(
+#   "eGFR_ckd_epi_2021",
+#   "Anemia.in.chronic.kidney.disease",
+#   "age_precise",
+#   "PGS004004",
+#   "racial_identity",
+#   "Hyperkalemia",
+#   #"PGS004889",
+#   #"Systemic.lupus.erythematosus",
+#   "sex_at_birth",
+#   #"C_Polygenic_Risk_Score",
+#   "apol1_gene_carrier",
+#   "Acidosis"
+# )
+
+# Load necessary libraries
+library(survival)
+library(MASS)
+library(car)
+library(ggplot2)
+set.seed(123)
+
+
+# Define the relevant columns, including the survival time and event indicator
+relevant_columns <- c("time_to_event", "disease_status", cox_formula_lab_free)
+
+# Filter columns and remove rows with missing values using base R
+train_data_filtered <- train_data[, relevant_columns, drop = FALSE]
+train_data_filtered <- train_data_filtered[complete.cases(train_data_filtered), ]
+
+# Restrict the time-to-event to 2 years to reduce censoring
+train_data_filtered <- train_data_filtered[train_data_filtered$time_to_event <= 2 * 365, ]
+
+# Step 1: Select predictors and convert any factors to numeric
+predictors_only <- train_data_filtered[, !(names(train_data_filtered) %in% c("time_to_event", "disease_status"))]
+predictors_only <- data.frame(lapply(predictors_only, function(x) {
+  if (is.factor(x)) as.numeric(as.character(x)) else x
+}))
+
+# Step 2: Filter out constant or all-NA columns
+predictors_only <- predictors_only[, sapply(predictors_only, function(x) sd(x, na.rm = TRUE) > 0 & !all(is.na(x)))]
+
+# Step 3: Use QR decomposition to check for collinearity and identify columns to keep
+qr_decomp <- qr(as.matrix(predictors_only), tol = 1e-7)
+non_collinear_vars <- qr_decomp$pivot[1:qr_decomp$rank]
+predictors_only <- predictors_only[, non_collinear_vars]
+
+# Update train_data_filtered to exclude the collinear columns
+train_data_filtered <- train_data_filtered[, c("time_to_event", "disease_status", colnames(predictors_only))]
+
+# Define an initial Cox model to calculate VIF
+initial_cox_model <- coxph(Surv(time_to_event, disease_status) ~ ., data = train_data_filtered)
+
+# Calculate VIF values and handle warning by interpreting them cautiously
+vif_values <- vif(initial_cox_model)
+cat("VIF values (interpret with caution due to no intercept):\n")
+print(vif_values)
+
+# Identify and remove variables with high VIF values (greater than 5)
+high_vif_vars <- names(vif_values)[vif_values > 5]
+train_data_filtered <- train_data_filtered[, !(names(train_data_filtered) %in% high_vif_vars)]
+
+# Define the initial Cox proportional hazards model with the reduced set of variables
+cox_full_model <- coxph(Surv(time_to_event, disease_status) ~ ., data = train_data_filtered)
+
+# Perform stepwise variable selection based on AIC
+stepwise_model <- stepAIC(cox_full_model, direction = "both", trace = FALSE)
+
+# Display selected variables and model summary
+summary(stepwise_model)
+
+# Print the AIC of the final model
+cat("AIC of the final model after stepwise selection:", AIC(stepwise_model), "\n")
+
+# Extract the coefficients of selected variables
+selected_variables <- coef(stepwise_model)
+selected_var_names <- names(selected_variables)
+cat("Selected variables:\n")
+print(selected_var_names)
+
+# Prepare data for variable importance plot
+var_importance <- data.frame(
+  Variable = selected_var_names,
+  Importance = abs(selected_variables)
+)
+
+# Plot variable importance
+ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Variables Selected by stepAIC", x = "Variables", y = "Absolute Coefficient") +
+  theme_minimal()
+
+
+#########################
+# Load necessary libraries
+library(survival)
+library(ggplot2)
+
+# Ensure test data is prepared in the same way as the train data
+# Filter out the columns that are in the final model after variable selection
+test_data_filtered <- test_data[, c("time_to_event", "disease_status", selected_var_names), drop = FALSE]
+test_data_filtered <- test_data_filtered[complete.cases(test_data_filtered), ]
+
+# Cap time_to_event at 2 years (730 days) in test data to match the training setup
+test_data_filtered$time_to_event <- pmin(test_data_filtered$time_to_event, 2 * 365)
+test_data_filtered$disease_status <- ifelse(test_data_filtered$time_to_event >= 2 * 365, 0, test_data_filtered$disease_status)
+
+# Predict risk scores on both training and test data using the final model
+train_risk_scores <- predict(stepwise_model, newdata = train_data_filtered, type = "risk")
+test_risk_scores <- predict(stepwise_model, newdata = test_data_filtered, type = "risk")
+
+# Calculate the C-index for training data
+train_c_index <- concordancefit(
+  x = train_risk_scores, 
+  y = Surv(train_data_filtered$time_to_event, train_data_filtered$disease_status)
+)
+cat("C-index for training data:", train_c_index$concordance, "\n")
+
+# Calculate the C-index for test data
+test_c_index <- concordancefit(
+  x = test_risk_scores, 
+  y = Surv(test_data_filtered$time_to_event, test_data_filtered$disease_status)
+)
+cat("C-index for test data:", test_c_index$concordance, "\n")
+
+# Visualize Variable Importance for Selected Variables in the Final Model
+var_importance <- data.frame(
+  Variable = selected_var_names,
+  Importance = abs(selected_variables)
+)
+
+# Plot variable importance for selected variables with enhanced styling
+ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "stepAIC", 
+    x = "Variables", 
+    y = "Absolute Coefficient"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 10),  # Bold and larger x-axis label
+    axis.title.y = element_text(size = 16),  # Bold and larger y-axis label
+    axis.text.x = element_text(size = 10),  # Larger x-axis tick labels
+    axis.text.y = element_text(face = "bold",size = 20),  # Larger y-axis tick labels
+    plot.title = element_text(face = "bold", size = 18, hjust = 0.5)  # Centered and bold title
+  )
+
+```
+
+## PH Assumption check
+
+```{r}
+# Load necessary library
+library(survival)
+
+# Perform the proportional hazards test
+ph_test <- cox.zph(stepwise_model)
+
+# Print the test results
+print(ph_test)
+
+# Convert the test results to a data frame
+ph_results <- as.data.frame(ph_test$table)
+
+# Add a new column indicating whether the PH assumption holds or is violated
+ph_results$Assumption <- ifelse(ph_results$p < 0.05, "Violated", "Holds")
+
+# Display the results with the new column
+print(ph_results)
+
+# Separate the global test result
+global_ph <- ph_results[nrow(ph_results), , drop = FALSE]  # Last row is usually the global test
+
+# Print global test result separately
+cat("Global PH Test:\n")
+print(global_ph)
+
+```
+
+# Lasso variable selector
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(glmnet)
+library(ggplot2)
+
+
+# Significant at 0.25
+cox_formula_lab_free <- c(
+  "eGFR_ckd_epi_2021", 
+  "age_precise", 
+  "sex_at_birth", 
+  
+  #"Anemia.in.chronic.kidney.disease", 
+  #"Anemia",
+  #"Iron.deficiency.anemia",
+  "Anaemia",
+  "Hyperkalemia", 
+  "Acidosis",
+  "Peripheral.vascular.disease",
+  "Type.2.diabetes.mellitus",
+  "Congestive.heart.failure",
+  "Atherosclerosis.of.coronary.artery.without.angina.pectoris",
+  "Diabetes.mellitus",
+  "BMI",
+  "Essential.hypertension",
+  "Proteinuria",
+  "Systolic.blood.pressure",
+  "smoking",
+  
+  "racial_identity", 
+  "ethnicity",
+  
+  "apol1_gene_carrier",
+  "PGS004889",
+  
+  "Health_Insurance_Yes",
+  "Health_Insurance_No" 
+  
+
+)
+
+
+
+# Significant at 0.10
+# cox_formula_lab_free  <- c(
+#   "eGFR_ckd_epi_2021",
+#   "Anemia.in.chronic.kidney.disease",
+#   "age_precise",
+#   "PGS004004",
+#   "racial_identity",
+#   "Hyperkalemia",
+#   #"PGS004889",
+#   #"Systemic.lupus.erythematosus",
+#   "sex_at_birth",
+#   #"C_Polygenic_Risk_Score",
+#   "apol1_gene_carrier",
+#   "Acidosis"
+# )
+
+# Define the relevant columns, including the survival time and event indicator
+relevant_columns <- c("time_to_event", "disease_status", cox_formula_lab_free)
+
+# Filter columns and remove rows with missing values using base R
+train_data_filtered <- train_data[, relevant_columns, drop = FALSE]
+train_data_filtered <- train_data_filtered[complete.cases(train_data_filtered), ]
+
+# Restrict the time-to-event to 2 years to reduce censoring
+train_data_filtered <- train_data_filtered[train_data_filtered$time_to_event <= 2 * 365, ]
+
+# Further filter the data for eGFR_ckd_epi_2021 < 60 (assuming eGFR_ckd_epi_2021 is in cox_formula_lab_free)
+train_data_filtered <- train_data_filtered[train_data_filtered$eGFR_ckd_epi_2021 < 60, ]
+train_data_filtered[is.na(train_data_filtered)] <- 0  # Replace all NA values with 0
+
+# Define predictor and response variables
+predictor_vars <- setdiff(names(train_data_filtered), c("time_to_event", "disease_status"))
+X <- model.matrix(~ ., data = train_data_filtered[, predictor_vars])[,-1]  # Design matrix without intercept
+y <- Surv(train_data_filtered$time_to_event, train_data_filtered$disease_status)  # Survival response
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Fit LASSO model with cross-validation to select lambda
+lasso_fit <- cv.glmnet(X, y, family = "cox", alpha = 1)  # LASSO (alpha = 1)
+
+# Get the best lambda value that minimizes cross-validation error
+best_lambda <- lasso_fit$lambda.min
+
+# Fit final LASSO model with the optimal lambda
+final_lasso_model <- glmnet(X, y, family = "cox", alpha = 1, lambda = best_lambda)
+
+# Extract the selected variables (non-zero coefficients)
+selected_variables <- rownames(coef(final_lasso_model))[which(coef(final_lasso_model, s = best_lambda) != 0)]
+cat("Selected variables using LASSO:\n")
+print(selected_variables)
+
+# Display the coefficients of the selected variables
+selected_coefficients <- coef(final_lasso_model, s = best_lambda)
+print(selected_coefficients[selected_variables,])
+
+# Plot the cross-validation curve
+plot(lasso_fit)
+title("LASSO Cross-Validation Curve for Cox Model")
+
+# Prepare data for variable importance plot
+var_importance <- data.frame(
+  Variable = selected_variables,
+  Importance = abs(as.numeric(selected_coefficients[selected_variables,]))
+)
+
+
+# Plot variable importance for selected variables with enhanced styling
+ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "LASSO", 
+    x = "Variables", 
+    y = "Absolute Coefficient"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 10),  # Bold and larger x-axis label
+    axis.title.y = element_text(size = 16),  # Bold and larger y-axis label
+    axis.text.x = element_text(size = 10),  # Larger x-axis tick labels
+    axis.text.y = element_text(face = "bold",size = 20),  # Larger y-axis tick labels
+    plot.title = element_text(face = "bold", size = 18, hjust = 0.5)  # Centered and bold title
+  )
+
+```
+
+## PH test on the penalized cox
+
+```{r}
+# Load necessary libraries
+library(survival)
+
+# Refit the Cox model without penalization using selected variables from LASSO
+selected_variables <- rownames(coef(final_lasso_model))[which(coef(final_lasso_model, s = best_lambda) != 0)]
+final_formula <- as.formula(paste("Surv(time_to_event, disease_status) ~", paste(selected_variables, collapse = " + ")))
+final_cox_model <- coxph(final_formula, data = train_data_filtered)
+
+summary(final_cox_model)
+# Perform the proportional hazards test
+ph_test <- cox.zph(final_cox_model)
+
+# Extract p-values and add "Assumption" column
+ph_results <- as.data.frame(ph_test$table)
+ph_results$Assumption <- ifelse(ph_results$p < 0.05, "Violated", "Holds")
+
+# Display the results
+print(ph_results)
+
+```
+
+# Elastic Net Variable Selector
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(glmnet)
+library(ggplot2)
+
+# Significant at 0.25
+cox_formula_lab_free <- c(
+  "eGFR_ckd_epi_2021", 
+  "age_precise", 
+  "sex_at_birth", 
+  
+  #"Anemia.in.chronic.kidney.disease", 
+  #"Anemia",
+  #"Iron.deficiency.anemia",
+  "Anaemia",
+  "Hyperkalemia", 
+  "Acidosis",
+  "Peripheral.vascular.disease",
+  "Type.2.diabetes.mellitus",
+  "Congestive.heart.failure",
+  "Atherosclerosis.of.coronary.artery.without.angina.pectoris",
+  "Diabetes.mellitus",
+  "BMI",
+  "Essential.hypertension",
+  "Proteinuria",
+  "Systolic.blood.pressure",
+  "smoking",
+  
+  "racial_identity", 
+  "ethnicity",
+  
+  "apol1_gene_carrier",
+  "PGS004889",
+  
+  "Health_Insurance_Yes",
+   "Health_Insurance_No" 
+  
+  
+)
+# Define the relevant columns, including the survival time and event indicator
+relevant_columns <- c("time_to_event", "disease_status", cox_formula_lab_free)
+
+# Filter columns and remove rows with missing values
+train_data_filtered <- train_data[, relevant_columns, drop = FALSE]
+train_data_filtered <- train_data_filtered[complete.cases(train_data_filtered), ]
+
+# Restrict the time-to-event to 2 years to reduce censoring
+train_data_filtered <- train_data_filtered[train_data_filtered$time_to_event <= 2 * 365, ]
+
+# Further filter the data for eGFR_ckd_epi_2021 < 60
+train_data_filtered <- train_data_filtered[train_data_filtered$eGFR_ckd_epi_2021 < 60, ]
+train_data_filtered[is.na(train_data_filtered)] <- 0  # Replace all NA values with 0
+
+# Define predictor and response variables
+predictor_vars <- setdiff(names(train_data_filtered), c("time_to_event", "disease_status"))
+X <- model.matrix(~ ., data = train_data_filtered[, predictor_vars])[,-1]  # Design matrix without intercept
+y <- Surv(train_data_filtered$time_to_event, train_data_filtered$disease_status)  # Survival response
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Fit Elastic Net model with cross-validation to select lambda
+# alpha = 0.5 gives a balanced Elastic Net penalty
+elastic_net_fit <- cv.glmnet(X, y, family = "cox", alpha = 0.5)  # Elastic Net with alpha = 0.5
+
+# Get the best lambda value that minimizes cross-validation error
+best_lambda <- elastic_net_fit$lambda.min
+
+# Fit final Elastic Net model with the optimal lambda
+final_elastic_net_model <- glmnet(X, y, family = "cox", alpha = 0.5, lambda = best_lambda)
+
+# Extract the selected variables (non-zero coefficients)
+selected_variables <- rownames(coef(final_elastic_net_model))[which(coef(final_elastic_net_model, s = best_lambda) != 0)]
+cat("Selected variables using Elastic Net:\n")
+print(selected_variables)
+
+# Display the coefficients of the selected variables
+selected_coefficients <- coef(final_elastic_net_model, s = best_lambda)
+print(selected_coefficients[selected_variables,])
+
+# Plot the cross-validation curve
+plot(elastic_net_fit)
+title("Elastic Net Cross-Validation Curve for Cox Model")
+
+# Prepare data for variable importance plot
+var_importance <- data.frame(
+  Variable = selected_variables,
+  Importance = abs(as.numeric(selected_coefficients[selected_variables,]))
+)
+
+# Plot variable importance for selected variables with enhanced styling
+ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Elastic Net", 
+    x = "Variables", 
+    y = "Absolute Coefficient"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 10),  # Bold and larger x-axis label
+    axis.title.y = element_text(size = 16),  # Bold and larger y-axis label
+    axis.text.x = element_text(size = 10),  # Larger x-axis tick labels
+    axis.text.y = element_text(face = "bold",size = 20),  # Larger y-axis tick labels
+    plot.title = element_text(face = "bold", size = 18, hjust = 0.5)  # Centered and bold title
+  )
+
+```
+
+# Stability Selection with Boruta Algorithm
+
+```{r}
+#install.packages("Boruta")
+
+# Load necessary libraries
+library(survival)
+library(Boruta)
+library(parallel)
+library(ggplot2)
+
+# Define the set of variables to include in the model
+# Significant at 0.25
+
+
+
+cox_formula_lab_free <- c(
+  "eGFR_ckd_epi_2021", 
+  "age_precise", 
+  "sex_at_birth", 
+  
+  #"Anemia.in.chronic.kidney.disease", 
+  #"Anemia",
+  #"Iron.deficiency.anemia",
+  "Anaemia",
+  "Hyperkalemia", 
+  "Acidosis",
+  "Peripheral.vascular.disease",
+  "Type.2.diabetes.mellitus",
+  "Congestive.heart.failure",
+  "Coronary.artery.disease" ,
+  "Diabetes.mellitus",
+  "BMI",
+  "Essential.hypertension",
+  "Proteinuria",
+  "Systolic.blood.pressure",
+  "smoking",
+  
+  # "Gout",
+  # "Hypothyroidism"
+  
+  "racial_identity",
+  "ethnicity",
+
+  "apol1_gene_carrier",
+  "PGS004889",
+  
+  "Health_Insurance_Yes",
+  "Health_Insurance_No"
+  
+  
+)
+
+library(Boruta)
+library(parallel)
+library(doParallel)
+library(ggplot2)
+
+# Define the relevant columns, including the survival time and event indicator
+relevant_columns <- c("time_to_event", "disease_status", cox_formula_lab_free)
+
+# Filter columns and remove rows with missing values using base R
+train_data_filtered <- train_data[, relevant_columns, drop = FALSE]
+train_data_filtered <- train_data_filtered[complete.cases(train_data_filtered), ]
+
+# Restrict the time-to-event to 2 years to reduce censoring
+train_data_filtered <- train_data_filtered[train_data_filtered$time_to_event <= 2 * 365, ]
+
+# Further filter the data for eGFR_ckd_epi_2021 < 60
+train_data_filtered <- train_data_filtered[train_data_filtered$eGFR_ckd_epi_2021 < 60, ]
+train_data_filtered[is.na(train_data_filtered)] <- 0  # Replace all NA values with 0
+
+# Define predictor and response variables
+predictor_vars <- setdiff(names(train_data_filtered), c("time_to_event", "disease_status"))
+X <- train_data_filtered[, predictor_vars]
+y <- train_data_filtered$disease_status
+
+# Combine predictors and response into one dataframe for Boruta
+boruta_data <- cbind(X, disease_status = y)
+
+# Set up parallel computing
+n_cores <- detectCores() - 1  # Use one less core than available
+cl <- makeCluster(n_cores)
+registerDoParallel(cl)
+
+# Perform Boruta feature selection with parallel processing
+set.seed(123)
+boruta_fit <- Boruta(
+  x = X,
+  y = as.factor(y),
+  doTrace = 2,
+  maxRuns = 100,
+  getImp = getImpRfZ
+)
+
+# Stop the parallel cluster
+stopCluster(cl)
+
+# Print the selected variables
+selected_vars <- getSelectedAttributes(boruta_fit, withTentative = TRUE)
+cat("Selected variables using Boruta Algorithm:\n")
+print(selected_vars)
+
+# Prepare data for variable importance plot
+importance_df <- attStats(boruta_fit)
+importance_df <- importance_df[order(importance_df$meanImp, decreasing = TRUE), ]
+selected_vars_df <- importance_df[rownames(importance_df) %in% selected_vars, ]
+
+# Plot variable importance for selected variables
+ggplot(selected_vars_df, aes(x = reorder(rownames(selected_vars_df), meanImp), y = meanImp)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Boruta Algorithm Variable Importance", 
+    x = "Variables", 
+    y = "Importance Score"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 12, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(face = "bold", size = 20),
+    plot.title = element_text(face = "bold", size = 18, hjust = 0.5)
+  )
+
+```
+
+# MODEL: Main
+
+### Train
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(tibble)
+library(boot)
+library(parallel)
+
+# Complete case
+my_dataframe <- train_data
+
+# Count cases and controls by race
+case_control_counts <- aggregate(person_id ~ race + disease_status, data = train_data, FUN = length)
+names(case_control_counts) <- c("race", "disease_status", "count")
+print(case_control_counts)
+
+# Replace all NA values in train_data with 0
+train_data[is.na(train_data)] <- 0
+print(sum(is.na(train_data)))  # Should print 0 if all NA values are replaced
+
+# Identify predictor variables (excluding outcome and ID)
+predictor_vars <- setdiff(names(train_data), c("time_to_event", "disease_status", "person_id"))
+
+# Step 1: Define truncation year and threshold
+stop_year <- 5
+threshold <- 60  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- my_dataframe
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create `time_to_event_2` and `outcome` variables
+df_complete <- transform(
+  df_complete,
+  time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+  outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+)
+
+
+# CHAPTER 2
+# # LASSO
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "sex_at_birth",
+# "ethnicity",
+# "racial_identity",
+# "Anaemia",
+# "Systolic.blood.pressure"
+# )
+# 
+
+# # ELASTIC NET
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+#   
+#   "eGFR_ckd_epi_2021",
+#   "age_precise",
+#   "sex_at_birth",
+#   "ethnicity",
+#   "racial_identity",
+#   "Systolic.blood.pressure",
+#   "Anaemia",
+#   "Essential.hypertension"
+# )
+
+
+
+# # STEP AIC
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "Systolic.blood.pressure",
+# "Anaemia"
+# )
+
+
+# Boruta Algorithm race free
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "Systolic.blood.pressure",
+# "BMI",
+# "Gout",
+# "Hypothyroidism",
+# "Essential.hypertension",
+# "Anaemia",
+# "Coronary.artery.disease"
+# 
+# 
+# )
+
+# Boruta Algorithm race specific
+selected_columns <- c(
+  "time_to_event_2", "outcome","race",
+
+"eGFR_ckd_epi_2021",
+"age_precise",
+"Systolic.blood.pressure",
+"BMI",
+"Gout",
+"Hypothyroidism",
+"Essential.hypertension",
+"Anaemia",
+"Coronary.artery.disease",
+
+ # "ethnicity",
+ # "racial_identity"
+
+"Health_Insurance_Yes",
+"Health_Insurance_No",
+
+"apol1_gene_carrier",
+"PGS004889"
+)
+
+
+
+# CHAPTER 3
+# LASSO
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "Health_Insurance_Yes",
+# "age_precise",
+# "ethnicity",
+# "sex_at_birth",
+# "apol1_gene_carrier",
+# "Anaemia",
+# "Systolic.blood.pressure"
+# )
+
+
+
+# # ELASTIC NET
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+#   "eGFR_ckd_epi_2021",
+#   "ethnicity",
+#   "age_precise",
+#   "Health_Insurance_Yes",
+#   "sex_at_birth",
+#   "apol1_gene_carrier",
+#   "Anaemia",
+#   "Systolic.blood.pressure",
+#   "PGS004889"
+# )
+
+
+
+# # STEP AIC
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "Health_Insurance_Yes",
+# "age_precise",
+# "apol1_gene_carrier",
+# "Health_Insurance_No",
+# "Anaemia"
+# )
+
+
+# # Boruta Algorithm
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "Health_Insurance_Yes",
+# "PGS004889",
+# "racial_identity",
+# "Anaemia",
+# "ethnicity",
+# "apol1_gene_carrier",
+# "BMI",
+# "Health_Insurance_No",
+# "Essential.hypertension",
+# "Systolic.blood.pressure"
+# 
+# )
+
+#############################
+
+# CHAPTER 3, REDEFINING RACE as Health insurance
+# LASSO
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "sex_at_birth",
+# #"ethnicity",
+# #"racial_identity",
+# "Health_Insurance_No",
+# "Health_Insurance_Yes",
+# "Anaemia",
+# "Systolic.blood.pressure"
+# )
+
+
+# # ELASTIC NET
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+#   "eGFR_ckd_epi_2021",
+#   "age_precise",
+#   "sex_at_birth",
+#   #"ethnicity",
+#   #"racial_identity",
+#   "Health_Insurance_No",
+#   "Health_Insurance_Yes",
+#   "Systolic.blood.pressure",
+#   "Anaemia",
+#   "Essential.hypertension"
+# )
+
+
+
+
+# # Boruta Algorithm
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "Anaemia",
+# #"ethnicity",
+# "BMI",
+# #"racial_identity",
+# "Health_Insurance_No",
+# "Health_Insurance_Yes",
+# "Systolic.blood.pressure",
+# "Essential.hypertension"
+# 
+# )
+
+
+#############################
+
+# CHAPTER 3, REDEFINING RACE as Genetics
+# LASSO
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "sex_at_birth",
+# #"ethnicity",
+# #"racial_identity",
+# "apol1_gene_carrier",
+# "PGS004889",
+# "Anaemia",
+# "Systolic.blood.pressure"
+# )
+
+
+# ELASTIC NET
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+#   "eGFR_ckd_epi_2021",
+#   "age_precise",
+#   "sex_at_birth",
+#   #"ethnicity",
+#   #"racial_identity",
+#   "apol1_gene_carrier",
+#   "PGS004889",
+#   "Systolic.blood.pressure",
+#   "Anaemia",
+#   "Essential.hypertension"
+# )
+
+
+
+
+# # # Boruta Algorithm
+# selected_columns <- c(
+#   "time_to_event_2", "outcome","race",
+# 
+# "eGFR_ckd_epi_2021",
+# "age_precise",
+# "Anaemia",
+# #"ethnicity",
+# "BMI",
+# #"racial_identity",
+# "apol1_gene_carrier",
+# "PGS004889",
+# "Systolic.blood.pressure",
+# "Essential.hypertension"
+# 
+# )
+
+
+
+
+
+df_filtered <- df_complete[df_complete$eGFR_ckd_epi_2021 < threshold, selected_columns]
+
+# Split data by race
+dat_src <- subset(df_filtered, race %in% c('Black or African American', 'White'))
+dat_tar_black <- subset(df_filtered, race == 'Black or African American')
+dat_tar_white <- subset(df_filtered, race == 'White')
+dat_tar_asian <- subset(df_filtered, race == 'Asian')
+
+# Set up datadist for rms functions
+dd <- datadist(df_filtered)
+options(datadist = "dd")
+
+# Step 5: Define and fit Cox model formula
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~",
+                                 paste(setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race")), collapse = " + ")))
+
+predictor_vars <- setdiff(names(df_filtered), c("time_to_event_2", "outcome", "race"))
+cox_formula <- as.formula(paste("Surv(time_to_event_2, outcome) ~", paste(predictor_vars, collapse = " + ")))
+
+cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+
+#####################
+# Convert matrix-like variables to numeric vectors
+numeric_vars <- c("age_precise", "Systolic.blood.pressure", "BMI", "Gout", 
+                  "Hypothyroidism", "Essential.hypertension", "Anaemia", 
+                  "Coronary.artery.disease")
+for (var in numeric_vars) {
+  my_dataframe[[var]] <- as.numeric(my_dataframe[[var]])
+}
+
+
+# Calculate AIC and BIC
+cox_s_coxph <- coxph(cox_formula, data = dat_src)
+model_aic <- AIC(cox_s_coxph)
+model_bic <- BIC(cox_s_coxph)
+cat("AIC of the Cox model:", model_aic, "\n")
+cat("BIC of the Cox model:", model_bic, "\n")
+
+# Step 6: Proportional Hazards Assumption Test
+ph_test <- cox.zph(cox_s_coxph)
+ph_results <- as.data.frame(ph_test$table[, "p"])
+colnames(ph_results) <- "p_value"
+ph_results$Assumption <- ifelse(ph_results$p_value < 0.05, "Violated", "Holds")
+ph_results <- tibble::rownames_to_column(ph_results, "Variable")
+print(ph_results)
+
+# Step 7: Extract coefficients, significance, and plot variable importance
+coef_values <- coef(cox_s)
+z_scores <- coef_values / sqrt(diag(cox_s$var))
+p_values <- 2 * (1 - pnorm(abs(z_scores)))
+significance <- ifelse(p_values < 0.05, "*", "")
+cleaned_variable_names <- gsub("\\[1\\]", "", names(coef_values))
+
+signif_results <- data.frame(Variable = cleaned_variable_names,
+                             Coefficient = coef_values,
+                             `p-value` = p_values,
+                             Significance = significance, stringsAsFactors = FALSE)
+print(signif_results)
+
+# Merge with PH assumption results
+signif_results <- merge(signif_results, ph_results, by = "Variable", all.x = TRUE)
+print(signif_results)
+
+var_importance <- signif_results[order(abs(signif_results$Coefficient), decreasing = TRUE), ]
+ggplot(var_importance, aes(x = reorder(Variable, abs(Coefficient)), y = abs(Coefficient))) +
+  geom_bar(stat = "identity", fill = "black") +
+  coord_flip() +
+  labs(title = "Integrated (Socioeconomic + Genetic) Model", x = "Variables", y = "Absolute Coefficient Estimate") +
+  theme_minimal()
+
+# # Step 8: Bootstrap C-statistic confidence intervals with parallel computing
+# c_statistic <- function(data, indices) {
+#   boot_data <- data[indices, ]
+#   cox_s_boot <- cph(cox_formula, data = boot_data, x = TRUE, y = TRUE, surv = TRUE)
+#   1 - rcorr.cens(exp(predict(cox_s_boot)), Surv(boot_data$time_to_event_2, boot_data$outcome))['C Index']
+# }
+# 
+# # Set up parallel processing
+# n_cores <- detectCores() - 1
+# cl <- makeCluster(n_cores)
+# clusterExport(cl, c("cox_formula", "c_statistic", "dat_src", "dat_tar_black", "dat_tar_white", "dat_tar_asian"))
+# clusterEvalQ(cl, { library(survival); library(rms); library(Hmisc) })
+# 
+# # Perform parallel bootstrapping with checks for non-empty data
+# set.seed(123)
+# 
+# # Initialize results for each group
+# c_all_ci <- c_black_ci <- c_white_ci <- c_asian_ci <- c(NA, NA)
+# c_all_mean <- c_black_mean <- c_white_mean <- c_asian_mean <- NA
+# 
+# # Bootstrap for the "All" group
+# if (nrow(dat_src) > 0) {
+#   c_all_boot <- boot(dat_src, c_statistic, R = 5000, parallel = "snow", ncpus = n_cores, cl = cl)
+#   c_all_ci <- boot.ci(c_all_boot, type = "perc")$percent[4:5]
+#   c_all_mean <- mean(c_all_boot$t)
+# } else {
+#   cat("No observations in the 'All' group. Skipping bootstrap.\n")
+# }
+# 
+# 
+# 
+# 
+# 
+# # Stop the cluster
+# stopCluster(cl)
+# 
+# # Display results with confidence intervals
+# results <- data.frame(
+#   Group = c('All'),
+#   C_index = c(c_all_mean),
+#   Lower_CI = c(c_all_ci[1]),
+#   Upper_CI = c(c_all_ci[2])
+# )
+# print(results)
+
+# Clear datadist option
+# options(datadist = NULL)
+
+```
+
+### Baseline Survival
+
+```{r}
+# Load necessary library
+library(ggplot2)
+
+# Step 1: Calculate the baseline cumulative hazard
+baseline_hazard <- basehaz(cox_s, centered = FALSE)
+
+# Step 2: Calculate the baseline survival function
+baseline_survival <- exp(-baseline_hazard$hazard)
+
+# Step 3: Combine time and survival into a dataframe for clarity
+baseline_survival_df <- data.frame(
+  time = baseline_hazard$time,
+  survival = baseline_survival
+)
+
+# Plot the baseline survival function
+ggplot(baseline_survival_df, aes(x = time, y = survival)) +
+  geom_line(color = "blue") +
+  labs(title = "Baseline Survival Function",
+       x = "Time",
+       y = "Survival Probability") +
+  theme_minimal()
+
+# Step 4: Extract the baseline hazard at 2 years (730 days)
+# Use nearest match for time to avoid potential mismatch
+baseline_hazard_2_years <- baseline_hazard$hazard[which.min(abs(baseline_hazard$time - 730))]
+
+# Step 5: Calculate the baseline survival at 2 years
+baseline_survival_2_years <- exp(-baseline_hazard_2_years)
+
+# Print the results
+cat("Baseline Hazard at 2 years (730 days):", baseline_hazard_2_years, "\n")
+cat("Baseline Survival at 2 years (730 days):", baseline_survival_2_years, "\n")
+
+```
+
+### Test
+
+##### AIC, C statistics
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(rms)
+library(Hmisc)
+library(boot)
+library(parallel)
+library(ggplot2)
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 5  # Truncation at year 2
+threshold <- 60  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- test_data
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- within(df_complete, {
+  time_to_event_2 <- ifelse(time_to_event <= stop_time, time_to_event, stop_time)
+  outcome <- ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+})
+
+# Step 3: Filter and select relevant columns
+required_columns   <- c(
+  "time_to_event_2", "outcome","race",
+
+"eGFR_ckd_epi_2021",
+"age_precise",
+"Systolic.blood.pressure",
+"BMI",
+"Gout",
+"Hypothyroidism",
+"Essential.hypertension",
+"Anaemia",
+"Coronary.artery.disease",
+
+# "ethnicity",
+# "racial_identity"
+
+"Health_Insurance_Yes",
+"Health_Insurance_No",
+
+"apol1_gene_carrier",
+"PGS004889"
+)
+
+
+
+
+# Check for missing columns
+missing_columns <- setdiff(required_columns, names(df_complete))
+if (length(missing_columns) > 0) {
+  stop("The following required columns are missing in df_complete: ", 
+       paste(missing_columns, collapse = ", "))
+}
+
+# Filter dataframe for existing columns
+existing_columns <- intersect(required_columns, names(df_complete))
+df_filtered <- df_complete[, existing_columns]
+
+# Step 4: Split data by race
+dat_src <- subset(df_filtered, race %in% c('Black or African American', 'White'))
+dat_tar_black <- subset(df_filtered, race == 'Black or African American')
+dat_tar_white <- subset(df_filtered, race == 'White')
+dat_tar_asian <- subset(df_filtered, race == 'Asian')
+
+# Set up datadist for rms functions
+dd <- datadist(dat_src)
+options(datadist = "dd")
+
+# # Step 5: Define Cox model formula
+# Using the trained cox model
+
+# Step 6: Define function to calculate C-statistic for bootstrapping
+c_statistic <- function(data, indices) {
+  boot_data <- data[indices, ]
+  if (nrow(boot_data) == 0) return(NA)
+  
+  # Ensure that boot_data has the required columns
+  if (!all(c("time_to_event_2", "outcome") %in% names(boot_data))) {
+    stop("Missing required columns in boot_data")
+  }
+  
+  # Predictions using the linear predictor
+  predictions <- predict(cox_s, newdata = boot_data, type = "lp")
+  return(1 - rcorr.cens(predictions, Surv(boot_data$time_to_event_2, boot_data$outcome))['C Index'])
+}
+
+# Step 7: Set up parallel processing for bootstrapping
+n_cores <- detectCores() - 1
+cl <- makeCluster(n_cores)
+clusterExport(cl, c("cox_s", "c_statistic", "dat_src", "dat_tar_black", "dat_tar_white", "dat_tar_asian", "predict"))
+clusterEvalQ(cl, { library(survival); library(Hmisc); library(rms); library(boot) })
+
+# Step 8: Perform bootstrapping for each group with error handling
+set.seed(123)
+
+# Helper function to run bootstraps and calculate CI
+calculate_boot_ci <- function(data) {
+  if (nrow(data) > 0) {
+    tryCatch({
+      boot_results <- boot(data, c_statistic, R = 5000, parallel = "snow", ncpus = n_cores, cl = cl)
+      ci <- boot.ci(boot_results, type = "perc")$percent[4:5]
+      mean_val <- mean(boot_results$t, na.rm = TRUE)
+      return(list(mean = mean_val, ci = ci))
+    }, error = function(e) {
+      warning("Bootstrapping failed: ", e$message)
+      return(list(mean = NA, ci = c(NA, NA)))
+    })
+  }
+  return(list(mean = NA, ci = c(NA, NA)))
+}
+
+# Run bootstraps and calculate CI for each group
+all_results <- calculate_boot_ci(dat_src)
+c_all_mean <- all_results$mean
+c_all_ci <- all_results$ci
+
+black_results <- calculate_boot_ci(dat_tar_black)
+c_black_mean <- black_results$mean
+c_black_ci <- black_results$ci
+
+white_results <- calculate_boot_ci(dat_tar_white)
+c_white_mean <- white_results$mean
+c_white_ci <- white_results$ci
+
+asian_results <- calculate_boot_ci(dat_tar_asian)
+c_asian_mean <- asian_results$mean
+c_asian_ci <- asian_results$ci
+
+# Stop the cluster
+stopCluster(cl)
+
+# Step 9: Display results with confidence intervals
+results <- data.frame(
+  Group = c('All', 'Black or African American', 'White', 'Asian'),
+  C_index = c(c_all_mean, c_black_mean, c_white_mean, c_asian_mean),
+  Lower_CI = c(c_all_ci[1], c_black_ci[1], c_white_ci[1], c_asian_ci[1]),
+  Upper_CI = c(c_all_ci[2], c_black_ci[2], c_white_ci[2], c_asian_ci[2])
+)
+print(results)
+
+# Clear datadist option after you are done
+options(datadist = NULL)
+
+```
+
+##### 
+
+##### Observed vs Predicted, **Nam and D’Agostino** **chi square statistic**
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+library(ggplot2)
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 5  # Truncation at year 5
+threshold <- 60  # Include observations with eGFR_ckd_epi_2021 < threshold
+stop_time <- stop_year * 365.25
+
+# Step 2: Data preparation
+df_complete <- test_data
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables using base R
+df_complete$time_to_event_2 <- ifelse(df_complete$time_to_event <= stop_time, df_complete$time_to_event, stop_time)
+df_complete$outcome <- ifelse(df_complete$disease_status == 1 & df_complete$time_to_event <= stop_time, 1, 0)
+
+# Step 3: Filter and select relevant columns using base R
+
+# Without race Model
+required_columns  <- c(
+  "time_to_event_2", "outcome","race",
+
+"eGFR_ckd_epi_2021",
+"age_precise",
+"Systolic.blood.pressure",
+"BMI",
+"Gout",
+"Hypothyroidism",
+"Essential.hypertension",
+"Anaemia",
+"Coronary.artery.disease",
+
+# "ethnicity",
+# "racial_identity"
+
+"Health_Insurance_Yes",
+"Health_Insurance_No",
+
+"apol1_gene_carrier",
+"PGS004889"
+)
+
+
+
+# Select only existing columns from `required_columns` and filter for eGFR threshold
+existing_columns <- intersect(required_columns, names(df_complete))
+df_filtered <- df_complete[existing_columns]
+df_filtered <- df_filtered[df_filtered$eGFR_ckd_epi_2021 < threshold, ]
+
+# Step 4: Split data by race using base R
+#dat_src <- subset(df_filtered, race %in% c('Black or African American', 'White'))
+
+# Convert necessary variables to appropriate types
+#dat_src$age_precise <- as.numeric(dat_src$age_precise)
+#dat_src$sex_at_birth <- as.factor(dat_src$sex_at_birth)
+#dat_src$Essential.hypertension <- as.factor(dat_src$Essential.hypertension)
+#dat_src$Type.2.diabetes.mellitus <- as.factor(dat_src$Type.2.diabetes.mellitus)
+
+# Ensure factor levels in df_filtered match those in dat_src
+for (col in names(dat_src)) {
+  if (is.factor(dat_src[[col]])) {
+    df_filtered[[col]] <- factor(df_filtered[[col]], levels = levels(dat_src[[col]]))
+  }
+}
+
+# Set up datadist for rms functions
+dd <- datadist(dat_src)
+options(datadist = "dd")
+
+# Step 5: Define and fit Cox model formula
+# cox_formula <- as.formula(paste(
+#   "Surv(time_to_event_2, outcome) ~", 
+#   paste(setdiff(names(dat_src), c("time_to_event_2", "outcome", "race")), collapse = " + ")
+# ))
+# cox_s <- rms::cph(cox_formula, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+# Use already fitted cox model
+
+# Step 7: Predict risks for calibration
+predicted_surv <- predictSurvProb(cox_s, newdata = df_filtered, times = stop_time)
+predicted_risk <- 1 - predicted_surv  # Probability of event (1 - survival probability)
+
+# Create predicted risk column
+df_filtered$predicted_risk <- predicted_risk
+
+# Step 8: Create quintiles based on predicted risk
+quintile_breaks <- quantile(df_filtered$predicted_risk, probs = seq(0, 1, 0.2), na.rm = TRUE)
+df_filtered$predicted_risk_quintile <- cut(df_filtered$predicted_risk, breaks = quintile_breaks, include.lowest = TRUE)
+
+# Calculate observed and predicted event rates in each quintile
+calibration_data <- aggregate(
+  list(Observed = df_filtered$outcome, Predicted = df_filtered$predicted_risk), 
+  by = list(Quintile = df_filtered$predicted_risk_quintile), 
+  FUN = mean
+)
+calibration_data$Observed <- calibration_data$Observed * 100  # Convert to percentages
+calibration_data$Predicted <- calibration_data$Predicted * 100  # Convert to percentages
+
+# Print calibration table
+print(calibration_data)
+
+
+# Step 10: Extract the full quintile data for exporting
+quintile_data <- df_filtered[, c("predicted_risk_quintile", "predicted_risk", "outcome")]
+quintile_data_summary <- calibration_data  # Summary of observed and predicted rates per quintile
+
+# Save the quintile-specific data to a CSV file for later use
+write.csv(quintile_data, "c2-racefree.csv", row.names = FALSE)
+write.csv(quintile_data_summary, "c2-race-summary.csv", row.names = FALSE)
+
+# Print confirmation
+cat("Quintile data and summary saved as CSV files.\n")
+
+# Reshape calibration_data to long format for ggplot
+library(reshape2)
+calibration_long <- melt(calibration_data, id.vars = "Quintile", variable.name = "Type", value.name = "Probability")
+
+# Create the calibration plot
+calibration_plot <- ggplot(calibration_long, aes(x = Quintile, y = Probability, fill = Type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5), width = 0.45) +
+  scale_fill_manual(values = c("Observed" = "darkgrey", "Predicted" = "black")) +
+  labs(title = "Integrated (Socioeconomic + Genetic) Model",
+       x = "Predicted Risk Quintile",
+       y = "Probability of Event (%)") +
+  theme_minimal()
+
+# Display the plot
+print(calibration_plot)
+
+# Save the plot as a PNG file
+ggsave("calibration_plot_c2_racefree_wouteGFR.png", plot = calibration_plot, width = 8, height = 6, dpi = 300)
+
+# Step 10: Calculate Nam and D'Agostino chi-squared statistic for calibration
+observed_counts <- aggregate(outcome ~ predicted_risk_quintile, data = df_filtered, sum)
+total_counts <- aggregate(outcome ~ predicted_risk_quintile, data = df_filtered, length)
+predicted_counts <- aggregate(predicted_risk ~ predicted_risk_quintile, data = df_filtered, sum)
+
+# Convert total and predicted counts to numeric if they are factors
+observed_counts$total <- as.numeric(total_counts$outcome)
+predicted_counts$expected <- as.numeric(predicted_counts$predicted_risk) * observed_counts$total
+chi_square_stat <- sum((observed_counts$outcome - predicted_counts$expected)^2 / predicted_counts$expected, na.rm = TRUE)
+cat("Nam and D'Agostino chi-squared statistic:", chi_square_stat, "\n")
+
+# Final display of calibration data
+print(calibration_data)
+
+
+
+# Create the calibration plot with updated x-axis labels
+calibration_plot <- ggplot(calibration_long, aes(x = factor(Quintile), y = Probability, fill = Type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5), width = 0.45) +
+  scale_fill_manual(values = c("Observed" = "darkgrey", "Predicted" = "black")) +
+  scale_x_discrete(labels = c("1", "2", "3", "4", "5")) +  # Rename quantiles to 1, 2, 3, 4, 5
+  labs(
+    title = "Integrated (Socioeconomic + Genetic)",
+    x = "Predicted Risk Quintile",
+    y = "Probability of Event (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 12, face = "bold"),
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.text.x = element_text(size = 15, face = "bold"),
+    axis.text.y = element_text(size = 15, face = "bold"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    legend.title = element_blank()
+  )
+calibration_plot
+
+#Firebrick
+#forestgreen
+```
+
+```{r}
+# Reshape calibration_data to long format for ggplot
+library(reshape2)
+calibration_long <- melt(calibration_data, id.vars = "Quintile", variable.name = "Type", value.name = "Probability")
+
+# Rename quantiles to 1, 2, 3, 4, 5 for clarity
+calibration_long$Quintile <- factor(calibration_long$Quintile, levels = unique(calibration_long$Quintile), labels = c("1", "2", "3", "4", "5"))
+
+# Create the line plot
+calibration_plot <- ggplot(calibration_long, aes(x = Quintile, y = Probability, color = Type, group = Type)) +
+  geom_point(size = 4) + # Increase point size for better visibility
+  geom_line(size = 2) + # Increase line thickness
+  scale_color_manual(values = c("Observed" = "darkgrey", "Predicted" = "steelblue")) +
+  labs(
+    title = "Integrated (Socioeconomic + Genetic) Model",
+    x = "Predicted Risk Quintile",
+    y = "Probability of Event (%)",
+    color = "Type"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 14, face = "bold"), # Larger x-axis title
+    axis.title.y = element_text(size = 14, face = "bold"), # Larger y-axis title
+    axis.text.x = element_text(size = 12, face = "bold"), # Larger x-axis text
+    axis.text.y = element_text(size = 12, face = "bold"), # Larger y-axis text
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5), # Larger and centered title
+    legend.position = "top", # Legend at the top
+    legend.title = element_text(size = 14, face = "bold"), # Bold and large legend title
+    legend.text = element_text(size = 14, face = "bold") # Bold and large legend text
+  )
+
+# Display the line plot
+print(calibration_plot)
+
+# Save the plot as a PNG file
+ggsave("calibration_plot_c2_racefree_line.png", plot = calibration_plot, width = 8, height = 6, dpi = 300)
+
+```
+
+##### Shaply
+
+```{r}
+#install.packages("iml")
+#install.packages("survival")
+library(iml)
+library(survival)
+
+
+# Identify model features (exclude time_to_event_2 and outcome as they're not predictors)
+model_features <- all.vars(cox_formula)[-c(1, 2)]
+
+# Filter df_filtered to only include the model features
+df_filtered_model <- df_filtered[, model_features, drop = FALSE]
+
+# Define a prediction function for the Cox model
+predict_survival <- function(model, newdata) {
+  # Get survival probabilities for a specific time (e.g., 5 years)
+  time_horizon <- 2 * 365.25  # 5 years in days
+  predicted_survival <- predictSurvProb(model, newdata = newdata, times = time_horizon)
+  risk_score <- 1 - predicted_survival  # Convert survival probability to risk
+  return(risk_score)
+}
+
+# Wrap the model and filtered data in a Predictor object
+predictor <- Predictor$new(model = cox_s, data = df_filtered_model, y = df_filtered$outcome, predict.function = predict_survival)
+
+# Compute Shapley values for an instance (e.g., the first observation)
+shapley_values <- Shapley$new(predictor, x.interest = df_filtered_model[1, ])
+
+# Plot Shapley values without numbers in labels
+shapley_plot <- shapley_values$plot()
+
+# Adjust the plot to remove exact values from labels and make it cleaner for publication
+shapley_plot + 
+  coord_flip() +  # Horizontal bars
+  theme_minimal() +  # Clean theme
+  labs(title = "Shapley Values for Model Features",
+       x = "Feature Contribution (phi)",
+       y = "Feature") +
+  theme(axis.text.y = element_text(size = 10)) +  # Adjust label text size
+  theme(plot.title = element_text(hjust = 0.5))  # Center title, Remove Exact Values from Labels
+
+# Extract Shapley values into a data frame
+shapley_df <- shapley_values$results
+
+# Remove numbers from feature labels by extracting only the feature name before the "=" symbol
+shapley_df$feature <- gsub("=.*", "", shapley_df$feature.value)  # Keep only text before "="
+
+# Plot Shapley values using ggplot2 without numbers in the labels
+library(ggplot2)
+
+shapley_plot <- ggplot(shapley_df, aes(x = reorder(feature, phi), y = phi)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  # Horizontal bars
+  theme_minimal() +  # Clean theme
+  labs(title = "Shapley Values for Model Features",
+       x = "Feature Contribution (phi)",
+       y = "Feature") +
+  theme(axis.text.y = element_text(size = 10),  # Adjust label text size for readability
+        plot.title = element_text(hjust = 0.5))  # Center the plot title
+
+
+print(shapley_plot)
+# # Save the plot as a PNG file
+# ggsave("shapley_plot_c2_racefree_wouteGFR.png", plot = shapley_plot, width = 8, height = 6, dpi = 300)
+
+```
+
+### 

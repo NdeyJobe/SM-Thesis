@@ -1,0 +1,158 @@
+---
+title: "Cox"
+output: html_document
+date: "2024-10-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message= FALSE)
+```
+
+## Data Importing
+
+```{r, message= FALSE}
+library(fastDummies)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(ape)
+library(survival)
+library(prodlim)
+library(pec)
+library(forestmodel)
+library(survminer)
+library(Hmisc)
+library(MASS)
+library(Matrix)
+library(glmnet)
+library(rootSolve)
+library(ggplot2)
+library(rms)
+library(cowplot)
+library(riskRegression)
+library(survex)
+library(survC1)
+library(MatchIt)
+# source('/home/rstudio/coxTL_functions.R')
+
+# Load the file into a dataframe
+name_of_file_in_bucket <- 'person_with_summary_inrange_indexdate_creatnine.csv' 
+my_dataframe  <- read_csv(name_of_file_in_bucket)
+```
+
+### Data Wrangling
+
+
+```{r}
+df_complete = my_dataframe
+stop_year = 5 # truncation at year 5 (can be set as differet value)
+threshold = 75 # remain the obervation with eGFR_MDRD<threshold
+
+stop_time = stop_year*365.25
+df_complete$time_to_event[is.na(df_complete$time_to_event)] = stop_time
+df_complete$time_to_event_2 = ifelse(df_complete$time_to_event<=stop_time, df_complete$time_to_event, stop_time)
+df_complete$outcome = ifelse(df_complete$disease_status==1 & df_complete$time_to_event <= stop_time, 1, 0)
+
+# remove some columns with high correlation with time
+col_remove = c('gender','person_id','date_of_birth','index_date','censored_date','event_date','time_to_event','age_reported','disease_date','disease_status',
+               'Nephrectomy','Hemodialysis','censored_date','event_date','event_type',
+               'End-stage renal disease','Chronic renal failure', 'Chronic kidney disease stage 4','Transplanted kidney present',"sex_at_birth_Male","Acute.glomerulonephritis")
+
+df_complete_rm = df_complete[,-which(names(df_complete) %in% col_remove)]
+
+##Replace NA with zero
+df_complete_rm[is.na(df_complete_rm)] <- 0
+
+summary(cbind(df_complete_rm$eGFR_ckd_epi_2021,df_complete_rm$eGFR_ckd_epi_2009,df_complete_rm$eGFR_MDRD))
+
+table(df_complete_rm$race,df_complete_rm$ethnicity)
+
+df_filter = df_complete_rm |> filter(eGFR_MDRD<threshold)
+
+table(df_filter$outcome,df_filter$ethnicity)
+table(df_filter$race,df_filter$ethnicity)
+
+table('2 year followup'=df_complete$race, 'diagnosis'=df_complete$ethnicity)
+#table(data_match$race,data_match$ethnicity)
+
+dat_src = df_filter[df_filter$race=='White' & df_filter$ethnicity=='Not Hispanic or Latino',]
+dat_tar = df_filter[df_filter$ethnicity=='Hispanic or Latino' ,]
+
+y_src = dat_src$outcome
+x_src = data.matrix(dat_src[,-which(names(dat_src) %in% c('outcome','race','ethnicity','distance','weights','subclass','time_to_event_2'))])
+#View(x_src[1:5,])
+
+# # Apply log transformation, checking for non-positive values
+columns_to_transform <- c(7:(ncol(x_src)-3))
+x_src[, columns_to_transform] <- scale(log(x_src[, columns_to_transform] + 1))
+
+###################################################
+###### Target data: non-Hispanic Black #########
+###################################################
+y_tar = dat_tar$outcome
+x_tar = data.matrix(dat_tar[,-which(names(dat_tar) %in% c('outcome','race','ethnicity','distance','weights','subclass','time_to_event_2'))])
+x_tar[, columns_to_transform] <- scale(log(x_tar[, columns_to_transform] + 1))
+
+## remove columns that have NA variance after log(x+1)-transformation
+
+rm_var_na = c(colnames(x_tar)[is.na(apply(x_tar, 2, var))], colnames(x_src)[is.na(apply(x_src, 2, var))],"eGFR_MDRD", "eGFR_ckd_epi_2009", "eGFR_ckd_epi_2021")
+X_t_all = x_tar[,-which(colnames(x_tar) %in% rm_var_na)]
+X_s_all = x_src[,-which(colnames(x_src) %in% rm_var_na)]
+cov = colnames(X_t_all)
+
+data_s_all = data.frame(cbind(X_s_all,time = dat_src$time_to_event_2,status=dat_src$outcome))
+data_t_all = data.frame(cbind(X_t_all,time = dat_tar$time_to_event_2,status=dat_tar$outcome))
+
+# Refit the model
+
+################ 
+################ data wrangling and data splitting 
+data_s_all$R = 1
+data_t_all$R = 0
+
+
+tar.train = floor(0.75*nrow(data_t_all))
+index_tar.train = sample(1:nrow(data_t_all), tar.train)
+
+src.train = floor(0.75*nrow(data_s_all))
+index_src.train = sample(1:nrow(data_s_all), src.train)
+
+tar_test = data_t_all[-index_tar.train,]
+X_t_test = X_t_all[-index_tar.train,]
+data_t = data_t_all[index_tar.train,]
+X_t = X_t_all[index_tar.train,]
+
+src_test = data_s_all[-index_src.train,]
+X_s_test = X_s_all[-index_src.train,]
+data_s = data_s_all[index_src.train,]
+X_s = X_s_all[index_src.train,]
+
+Ns<-dim(data_s)[1] # number of source sample
+ns<-dim(src_test)[1]   # number of target sample for testing
+Nt<-dim(data_t)[1]  # number of target sample for training
+nt<-dim(tar_test)[1]   # number of target sample for testing
+
+
+functext = paste0("cox_s<- rms::cph(survival::Surv(time, status) ~", paste(cov, collapse = "+"),",
+                  data = data_s,x=TRUE,y=TRUE,surv=TRUE)")
+eval(parse(text = functext))
+  
+functext = paste0("cox_t<- rms::cph(survival::Surv(time, status) ~", paste(cov, collapse = "+"),",
+                    data = data_t,x=TRUE,y=TRUE,surv=TRUE)")
+eval(parse(text = functext))
+  
+time_test<-seq(0,1.5,0.01)
+surv_t<-predictSurvProb(cox_t,newdata=tar_test,times=time_test)
+surv_s<-predictSurvProb(cox_s,newdata=src_test,times=time_test)
+
+
+C_index<-c(1-rcorr.cens(exp(X_t_test%*%coef(cox_t)),Surv(tar_test$time,tar_test$status))['C Index'],
+1-rcorr.cens(exp(X_s_test%*%coef(cox_s)),Surv(src_test$time,src_test$status))['C Index'])
+  
+IBS<-c(integrated_brier_score(Surv(tar_test$time,tar_test$status), surv = surv_t, times = time_test),
+       integrated_brier_score(Surv(src_test$time,src_test$status), surv = surv_s, times = time_test))
+  
+re<-data.frame(Method=c('Target','Source'),C_index=C_index,IBS=IBS)
+re
+
+```

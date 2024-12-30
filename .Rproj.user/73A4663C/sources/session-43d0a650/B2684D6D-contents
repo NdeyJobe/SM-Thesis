@@ -1,0 +1,43 @@
+---
+title: "Proposal"
+format: pdf
+bibliography: references.bib
+---
+
+### **Proposed Research Project**
+
+#### Title:
+
+**Evaluating the Impact of Race on End-Stage Renal Disease (ESRD) Risk Prediction Models Based on Baseline eGFR Levels**
+
+#### **Introduction** @major2019
+
+**Hypothesis Being Tested** Including race as a variable in End-Stage Renal Disease (ESRD) risk prediction models based on baseline estimated glomerular filtration rate (eGFR) will improve the models' predictive accuracy.
+
+**Background** ESRD is a severe public health issue that requires accurate risk prediction for effective early intervention. Existing clinical ESRD risk calculators typically consider variables such as age, sex, and baseline eGFR but often exclude race. Despite this, numerous studies have documented significant racial disparities in the prevalence and outcomes of ESRD, indicating a potential oversight in current predictive models. Given these disparities, it is essential to investigate whether the inclusion of race can enhance the accuracy of ESRD risk predictions.
+
+**Significance** Accurate risk prediction models are crucial for early identification and management of patients at risk for ESRD. By potentially enhancing these models with race as a variable, we can improve clinical decision-making, personalize patient care, and address racial disparities in ESRD outcomes. This research aims to fill a critical gap in current medical knowledge and practice, providing evidence that could lead to the refinement of ESRD risk calculators and ultimately better patient outcomes.
+
+#### **Proposed Methods**
+
+**Study Design** A cross-sectional analysis will be conducted using the dataset from "All of Us," which includes a diverse cohort of participants with comprehensive health data.
+
+**Population** Participants will be included based on the availability of baseline eGFR measurements. The cohort will be categorized by race, including but not limited to White, Black, Hispanic, and Asian populations.
+
+**Data Collection** Key variables to be extracted from the dataset include baseline eGFR, demographic data (age, sex, race), and relevant comorbidities (e.g., diabetes, hypertension). Follow-up data on ESRD development will also be collected.
+
+**Model Development and Analysis** Two ESRD risk prediction models will be developed:
+
+1.  **Model 1**: Includes age, sex, baseline eGFR, and comorbidities.
+
+2.  **Model 2**: Includes all variables in Model 1 plus race.
+
+The models' predictive accuracy will be compared using statistical measures such as C-statistics and Akaike Information Criterion (AIC). Calibration of the models will be assessed using calibration plots. Subgroup analyses will be conducted to evaluate the impact of race within different eGFR strata and comorbidity profiles.
+
+**Ethical Considerations** The study will adhere to ethical standards, including obtaining necessary approvals and ensuring the privacy and confidentiality of participants' data.
+
+#### **Anticipated Results**
+
+We anticipate that the inclusion of race as a variable will significantly improve the predictive accuracy of the ESRD risk models. Specifically, Model 2 is expected to show better discrimination and calibration than Model 1, particularly in racial groups with historically higher or lower risks of ESRD. The findings will likely demonstrate that race is an important factor in predicting ESRD risk and should be included in clinical risk calculators.
+
+The results will have important implications for clinical practice, suggesting updates to current ESRD risk calculators to include race. This improvement in risk prediction models can lead to more precise and equitable identification of high-risk individuals, thereby enabling targeted interventions and reducing racial disparities in ESRD outcomes. Overall, this research will provide valuable evidence supporting the integration of race into ESRD risk prediction models, ultimately contributing to better health outcomes and equity in healthcare.

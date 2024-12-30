@@ -1,0 +1,324 @@
+---
+title: "cox_model"
+format: html
+editor: visual
+---
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(knitr) # For kable to display tables nicely
+
+# Load the dataset
+my_dataframe <- read.csv("person_with_summary_inrange_indexdate_creatnine.csv")
+
+# Retain only observations where BMI is not NA
+my_dataframe <- my_dataframe %>% filter(!is.na(BMI))
+
+# Verify that there are no NA values in the BMI column
+print(sum(is.na(my_dataframe$BMI)))  # This should print 0 if all NA values are removed
+
+
+# Define the columns to remove
+col_remove <- c(
+  'gender','person_id','date_of_birth','index_date','censored_date','event_date', 
+  'age_reported','disease_date', 'Nephrectomy','Hemodialysis','censored_date',
+  'event_date',"Acute.glomerulonephritis",
+  "height", "weight", "Nephritic.syndrome", "age_reported", 
+  "Peripheral.circulatory.disorder.due.to.type.1.diabetes.mellitus", 
+  "Complication.of.renal.dialysis", "Membranous.glomerulonephritis", "doxercalciferol", 
+  "midodrine", "Iron.saturation..Mass.Fraction..in.Serum.or.Plasma", 
+  "Iron.binding.capacity..Mass.volume..in.Serum.or.Plasma", "highest_smoking_status_rank", 
+  "Tobacco.smoking.status", "insulin.aspart..human", 
+  "Ketoacidosis.due.to.type.1.diabetes.mellitus", "Systemic.lupus.erythematosus", 
+  "Ferritin..Mass.volume..in.Serum.or.Plasma", "Hypertensive.heart.and.chronic.kidney.disease", 
+  "eGFR_MDRD", "eGFR_ckd_epi_2009", 
+  "Glomerular.filtration.rate.1.73.sq.M.predicted..Volume.Rate.Area..in.Serum..Plasma.or.Blood.by.Creatinine.based.formula..MDRD."
+)
+
+# Remove specified columns from my_dataframe
+my_dataframe <- my_dataframe[, !(names(my_dataframe) %in% col_remove)]
+
+# Check if `person_id` is available for merging; if not, use rownames
+if (!"person_id" %in% colnames(my_dataframe)) {
+  my_dataframe <- my_dataframe %>% mutate(person_id = row_number())
+}
+
+# Separate data by race for custom sampling
+black_data <- my_dataframe %>% filter(race == "Black or African American")
+white_data <- my_dataframe %>% filter(race == "White")
+asian_data <- my_dataframe %>% filter(race == "Asian")
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Sample 70% of Black or African American and White for training data
+black_train <- black_data %>% sample_frac(0.7)
+white_train <- white_data %>% sample_frac(0.7)
+
+# The remaining 30% of Black or African American and White for test data
+black_test <- anti_join(black_data, black_train, by = "person_id")
+white_test <- anti_join(white_data, white_train, by = "person_id")
+
+# All Asian individuals go into the test set
+asian_test <- asian_data
+
+# Combine training data
+train_data <- bind_rows(black_train, white_train) %>%
+  mutate(raceAsian = 0)  # Add dummy variable raceAsian with 0 for all rows in train data
+
+# Combine test data and add `raceAsian` column for consistency
+test_data <- bind_rows(black_test, white_test, asian_test) %>%
+  mutate(raceAsian = if_else(race == "Asian", 1, 0))
+
+# Calculate race proportions for train and test sets, ensuring all races are represented
+train_race_proportion <- prop.table(table(factor(train_data$race, levels = c("Black or African American", "White", "Asian")))) * 100
+test_race_proportion <- prop.table(table(factor(test_data$race, levels = c("Black or African American", "White", "Asian")))) * 100
+
+# Create a summary table for race proportions
+race_proportion_table <- data.frame(
+  Race = c("Black or African American", "White", "Asian"),
+  Train_Proportion = round(as.numeric(train_race_proportion), 1),
+  Test_Proportion = round(as.numeric(test_race_proportion), 1)
+)
+
+# Calculate dimensions for train and test sets
+dimension_table <- data.frame(
+  Set = c("Train", "Test"),
+  Rows = c(nrow(train_data), nrow(test_data)),
+  Columns = c(ncol(train_data), ncol(test_data))
+)
+
+# Display the tables
+cat("Race Proportion Table:\n")
+print(kable(race_proportion_table, format = "markdown"))
+
+cat("\nDimension Table:\n")
+print(kable(dimension_table, format = "markdown"))
+
+```
+
+### Cox Model
+
+```{r}
+
+# Complete case
+my_dataframe <- train_data
+colnames(train_data)
+
+# Assuming `outcome` column has 1 for cases and 0 for controls
+case_control_counts <- train_data %>%
+  group_by(race, disease_status) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+# Print the counts
+print(case_control_counts)
+
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 5  # Truncation at year 5
+threshold <- 300  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- my_dataframe
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  dplyr::select(eGFR_ckd_epi_2021, serum_creatinine, age_precise, sex_at_birth, race, ethnicity, time_to_event_2, outcome)
+
+# Step 4: Split data by race
+# Source group: Both Black or African American and White individuals
+dat_src <- df_filtered %>% filter(race %in% c('Black or African American', 'White'))
+
+# Target group 1: Black or African American individuals
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+
+# Target group 2: White individuals
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+
+# Target group 3: Asian individuals
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+# Prepare data for model fitting
+prepare_data_for_model <- function(data) {
+  y <- data$outcome
+  x <- data.matrix(data %>% dplyr::select(eGFR_ckd_epi_2021, serum_creatinine, age_precise))
+  # Apply log(x+1) normalization
+  x <- scale(log(x + 1))
+  list(y = y, x = x)
+}
+
+# Prepare source and target datasets
+source_data <- prepare_data_for_model(dat_src)
+target_data_black <- prepare_data_for_model(dat_tar_black)
+target_data_white <- prepare_data_for_model(dat_tar_white)
+target_data_asian <- prepare_data_for_model(dat_tar_asian)
+
+
+# Set up the datadist object for the predictor variables in dat_src
+dd <- datadist(dat_src)  # Create datadist for predictor variables
+options(datadist = "dd") # Set the datadist option for rms functions
+
+
+# Step 5: Cox model fitting for source and target groups
+cox_s <- rms::cph(Surv(time_to_event_2, outcome) ~ eGFR_ckd_epi_2021 + serum_creatinine + age_precise, data = dat_src, x = TRUE, y = TRUE, surv = TRUE)
+
+# Step 6: Predictions and evaluation for each target group
+time_test <- seq(0, 1.5, 0.01)
+surv_s <- predictSurvProb(cox_s, newdata = dat_src, times = time_test)
+surv_t_black <- predictSurvProb(cox_s, newdata = dat_tar_black, times = time_test)
+surv_t_white <- predictSurvProb(cox_s, newdata = dat_tar_white, times = time_test)
+surv_t_asian <- predictSurvProb(cox_s, newdata = dat_tar_asian, times = time_test)
+
+# Evaluation using C-index and Integrated Brier Score (IBS) for each group
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(as.matrix(dat_tar_black[, c("eGFR_ckd_epi_2021", "serum_creatinine", "age_precise")]) %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(as.matrix(dat_tar_white[, c("eGFR_ckd_epi_2021", "serum_creatinine", "age_precise")]) %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(as.matrix(dat_tar_asian[, c("eGFR_ckd_epi_2021", "serum_creatinine", "age_precise")]) %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+
+# Step 7: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+
+# Construct the Cox model equation as a string
+cox_equation <- paste0("h(t) = h0(t) * exp(", 
+                       paste(names(coef(cox_s)), round(coef(cox_s), 4), sep = " * ", collapse = " + "), 
+                       ")")
+
+# Print the Cox model equation
+cat("Cox Model Equation:\n", cox_equation, "\n")
+
+
+# Generate the summary of the Cox model
+cox_summary <- summary(cox_s)
+print(cox_summary)
+
+
+# Assuming you've already loaded necessary libraries and fit the model
+# Extract coefficients from the Cox model
+coef_values <- abs(coef(cox_s))
+var_importance <- data.frame(
+  Variable = names(coef_values),
+  Importance = coef_values
+)
+
+# Sort by importance (largest first)
+var_importance <- var_importance %>%
+  arrange(desc(Importance))
+
+# Plot Variable Importance
+library(ggplot2)
+ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Variable Importance in Cox Model", x = "Variables", y = "Absolute Coefficient Estimate")
+
+
+# Clear datadist option after you are done
+options(datadist = NULL)
+```
+
+# Evalution on 30% of data
+
+```{r}
+
+# Complete case
+my_dataframe <- test_data
+
+# # Assuming `outcome` column has 1 for cases and 0 for controls
+# case_control_counts <- test_data %>%
+#   group_by(race, disease_status) %>%
+#   summarise(count = n()) %>%
+#   ungroup()
+# 
+# # Print the counts
+# print(case_control_counts)
+
+# Load necessary libraries
+library(dplyr)
+library(survival)
+library(rms)
+library(Hmisc)
+library(pec)
+
+# Step 1: Define the truncation year and threshold
+stop_year <- 5  # Truncation at year 5
+threshold <- 300  # Include observations with eGFR_ckd_epi_2021 < threshold
+
+# Step 2: Data preparation
+stop_time <- stop_year * 365.25
+df_complete <- my_dataframe
+
+# Replace NA values in time_to_event with stop_time
+df_complete$time_to_event[is.na(df_complete$time_to_event)] <- stop_time
+
+# Create time_to_event_2 and outcome variables
+df_complete <- df_complete %>%
+  mutate(
+    time_to_event_2 = ifelse(time_to_event <= stop_time, time_to_event, stop_time),
+    outcome = ifelse(disease_status == 1 & time_to_event <= stop_time, 1, 0)
+  )
+
+# Step 3: Filter and select relevant columns
+df_filtered <- df_complete %>%
+  filter(eGFR_ckd_epi_2021 < threshold) %>%
+  dplyr::select(eGFR_ckd_epi_2021, serum_creatinine, age_precise, sex_at_birth, race, ethnicity, time_to_event_2, outcome)
+
+# Step 4: Split data by race
+# Target group 1: Black or African American individuals
+dat_tar_black <- df_filtered %>% filter(race == 'Black or African American')
+
+# Target group 2: White individuals
+dat_tar_white <- df_filtered %>% filter(race == 'White')
+
+# Target group 3: Asian individuals
+dat_tar_asian <- df_filtered %>% filter(race == 'Asian')
+
+# Prepare source and target datasets
+target_data_black <- prepare_data_for_model(dat_tar_black)
+target_data_white <- prepare_data_for_model(dat_tar_white)
+target_data_asian <- prepare_data_for_model(dat_tar_asian)
+
+
+# Step 5: Predictions and evaluation for each target group
+time_test <- seq(0, 1.5, 0.01)
+surv_s <- predictSurvProb(cox_s, newdata = dat_src, times = time_test)
+surv_t_black <- predictSurvProb(cox_s, newdata = dat_tar_black, times = time_test)
+surv_t_white <- predictSurvProb(cox_s, newdata = dat_tar_white, times = time_test)
+surv_t_asian <- predictSurvProb(cox_s, newdata = dat_tar_asian, times = time_test)
+
+# Evaluation using C-index and Integrated Brier Score (IBS) for each group
+C_index <- c(
+  Black = 1 - rcorr.cens(exp(as.matrix(dat_tar_black[, c("eGFR_ckd_epi_2021", "serum_creatinine", "age_precise")]) %*% coef(cox_s)), Surv(dat_tar_black$time_to_event_2, dat_tar_black$outcome))['C Index'],
+  White = 1 - rcorr.cens(exp(as.matrix(dat_tar_white[, c("eGFR_ckd_epi_2021", "serum_creatinine", "age_precise")]) %*% coef(cox_s)), Surv(dat_tar_white$time_to_event_2, dat_tar_white$outcome))['C Index'],
+  Asian = 1 - rcorr.cens(exp(as.matrix(dat_tar_asian[, c("eGFR_ckd_epi_2021", "serum_creatinine", "age_precise")]) %*% coef(cox_s)), Surv(dat_tar_asian$time_to_event_2, dat_tar_asian$outcome))['C Index']
+)
+
+# Step 6: Create results dataframe for each race
+results <- data.frame(Group = c('Black or African American', 'White', 'Asian'), C_index = C_index)
+print(results)
+## output the variable importance
+
+```

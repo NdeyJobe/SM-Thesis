@@ -1,0 +1,244 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx} % Use Times font for text and math
+\usepackage{amsmath} % For mathematical typesetting
+\usepackage{microtype} % Enhances typography, load after font package
+
+\usepackage{geometry} % Set margins
+\geometry{a4paper, left=2cm, right=2cm, top=2.5cm, bottom=2.5cm}
+
+\usepackage{graphicx} % For including images
+\usepackage{float} % For figure/table placement
+\usepackage{subcaption} % For subfigures
+\usepackage{longtable} % For tables that span multiple pages
+\usepackage{threeparttable} % For adding notes to tables
+\usepackage{booktabs} % For improved table formatting
+\usepackage{array} % Additional table formatting options
+\usepackage{multicol} % For multiple columns
+\usepackage{rotating} % For rotating tables/figures if needed
+\usepackage{forest} % For creating tree structures
+
+\usepackage[font=small, labelfont=bf, labelsep=space]{caption} % Customize caption style
+\usepackage[pdftex, linkcolor=black, pdfborder={0 0 0}]{hyperref} % Format hyperlinks for PDF
+
+\usepackage{enumitem} % For better control of list formatting
+\usepackage[all]{nowidow} % Minimize widows and orphans
+\setlength{\columnsep}{12pt} % Space between columns
+
+\frenchspacing % Single space between sentences
+\linespread{1.5} % Line spacing
+
+\usepackage{lipsum} % For placeholder text
+\usepackage{subcaption}
+
+\date{}
+
+\begin{document}
+\title{Chapter 1: Evaluating Disparities in End-Stage Renal Disease Risk Prediction Using the All of Us Cohort}
+\maketitle
+
+\begin{abstract}
+\noindent \textbf{Objective:} 
+To assess the performance of race-inclusive and race-free estimated glomerular filtration rate (eGFR) equations in predicting end-stage renal disease (ESRD) risk across Black, White, and Asian populations. 
+
+\noindent \textbf{Methods:} 
+We performed a retrospective cohort study using the "All of Us Research Program Controlled Tier Dataset v7," a comprehensive national database designed to capture health information from diverse populations across the United States to advance precision medicine. We evaluated the 2-year and 5-year predictive accuracy of the four-variable Kidney Failure Risk Equation (KFRE) for end-stage renal disease (ESRD) risk prediction, comparing results using race-inclusive versus race-neutral eGFR equations across Black or African American, White, and Asian groups. 
+
+\noindent \textbf{Results:} 
+The CKD-EPI 2021 model demonstrated significant predictive superiority only in the Black population, specifically in the CKD Very High Risk and CKD High Risk categories, for both the 2-year and 5-year predictions. For the All Populations, Asian, and White groups, the confidence intervals for C-statistic differences generally crossed zero across risk groups, suggesting no significant superiority of CKD-EPI 2021 over MDRD or CKD-EPI 2009 in these populations.
+
+\noindent \textbf{Conclusion:} 
+Our findings underscore the importance of carefully balancing the consideration of race in clinical algorithms with the integration of additional relevant risk factors to enhance predictive accuracy and equity.
+\end{abstract}
+
+
+
+
+\subsection*{INTRODUCTION} 
+Accurate assessment of kidney function is essential for effective management of chronic kidney disease (CKD) and for predicting progression to end-stage renal disease (ESRD). The estimated glomerular filtration rate (eGFR), calculated from serum creatinine levels, serves as a central clinical measure in this context. Historically, eGFR equations such as the Modification of Diet in Renal Disease (MDRD) and the 2009 Chronic Kidney Disease Epidemiology Collaboration (CKD-EPI) equations incorporated race-based adjustments for Black individuals due to observed differences in serum creatinine levels \cite{Levey2009ARate}. However, this inclusion of race has come under critical scrutiny, as it may inadvertently perpetuate health disparities. In response, the 2021 CKD-EPI equation was introduced, omitting race as a variable \cite{Inker2021NewRace}.
+
+While removing race from eGFR calculations aims to advance healthcare equity, concerns remain regarding the impact of this change on predictive accuracy across racial and ethnic groups. In 2021, racial disparities in ESRD incidence persisted, with particularly high rates among Black and Asian populations \cite{Johansen2024USStates}.
+
+This study seeks to evaluate the performance and equity of both race-inclusive and race-neutral eGFR equations in predicting ESRD. By examining the implications of excluding race from eGFR and associated risk prediction equations, we aim to provide valuable insights into their clinical utility and impact on equity. Ultimately, our findings will inform a more equitable, evidence-based approach to CKD management, ensuring that predictive tools contribute to fair healthcare outcomes for diverse populations.
+
+\subsection*{METHODS} 
+
+\subsubsection*{Study population}
+This retrospective cohort study utilized data from the "All of Us Research Program Controlled Tier Dataset v7," incorporating records available up to July 1, 2022 (version C2022Q4R11, released December 5, 2023).
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.4\linewidth]{Target population.png}
+    \caption{\textbf{Flowchart of Participant Selection and Inclusion Criteria}}
+    \label{fig:enter-label}
+\end{figure}
+
+As illustrated in Figure 1, the initial cohort included 413,457 participants aged 18 years and older, with a final cohort of 130,772 participants who had recorded serum creatinine values. Among these, 1,679 participants were identified as cases of end-stage renal disease (ESRD), distributed as 816 cases among Black participants, 805 among White participants, and 58 among Asian participants. The control group, consisting of 128,093 individuals without ESRD, included 30,125 Black participants, 93,856 White participants, and 4,112 Asian participants.
+
+The dataset was developed using standardized SNOMED variables. The index date was defined as the date of each participant’s first recorded serum creatinine measurement, with a 1-year retrospective feature window prior to this date to capture relevant predictor data. Only data within this feature window were included in the analysis. Participants with a diagnosis of ESRD (SNOMED code 46177005) prior to the index date were excluded. The ESRD diagnosis date was recorded as the date of first diagnosis, while for controls, the censoring date was defined as the most recent record of any condition end date, device exposure end date, drug exposure end date, lab measurement date, observation date, or procedure date.
+
+For Kaplan-Meier survival analysis, 129,772 participants with an event date occurring after the index date were included, comprising 1,679 ESRD cases and 128,093 controls. The cohort was stratified by race, including 4,170 Asian participants (58 cases, 4,112 controls), 30,941 Black or African American participants (816 cases, 30,125 controls), and 94,661 White participants (805 cases, 93,856 controls).
+
+Estimated glomerular filtration rate (eGFR) calculations were performed for 127,783 participants who identified as male or female at birth, drawn from a total of 129,117 participants with serum creatinine values ranging from 0.1 to 247.9 mg/dL. 
+
+A subgroup of 73,350 controls and 999 ESRD cases with recorded albumin measurements was included in the assessment of the Kidney Failure Risk Equation (KFRE) for the North American population. Within this subgroup, the racial breakdown included 14,166 controls and 427 cases among Black participants, 56,480 controls and 526 cases among White participants, and 2,704 controls and 46 cases among Asian participants.
+
+\begin{table}[H] % 'H' keeps the table in place
+    \centering
+    \includegraphics[width=\linewidth]{Table1.png} % Ensure path and file name are correct
+    \caption{Summary of Cohort Characteristics}
+    \label{tab:table1}
+\end{table}
+
+
+\subsubsection*{Statistical Analysis}
+The KFRE model used in this study was the four-variable equation \cite{Tangri2011AFailure,Bundy2022PredictionStudy,Tangri2016MultinationalAmeta-analysis,Aguilar-Ramirez2022InAlone}. Estimated glomerular filtration rate (eGFR) calculations were based on three established equations: the MDRD \cite{Levey2000AAbstract}, and CKD-EPI 2009 \cite{Levey2009ARate, Coresh2012CKD-EPIPopulations, Matsushita2012ComparisonRate, Parsh2015ChoiceInterventions}, equations, which are race-inclusive, and the CKD-EPI 2021 equation \cite{Inker2021NewRace,Levey2020KidneyEstimation,DuBois1989A1916.,Shafi2022QuantifyingStudy}, which excludes race as a variable. We applied non-BSA-standardized versions of these eGFR models to maintain consistency with current clinical guidelines and large-scale epidemiological studies that report eGFR values adjusted to a standard body surface area (BSA) of 1.73 m². This approach ensured comparability across studies and alignment with established chronic kidney disease (CKD) diagnosis and staging criteria, where BSA normalization is not universally applied.
+
+Data preprocessing involved selecting key variables, including eGFR, Albumin-to-Creatinine Ratio (ACR), age, sex, and disease status. To manage skewed distributions, ACR values were log-transformed \cite{Tangri2011AFailure}. Using the validated 4-variable KFRE formula incorporating age, sex, eGFR, and log-transformed ACR, we calculated the beta coefficient sum, which was then used to estimate the 2-year and 5-year risk of kidney failure.
+
+Following data preprocessing, model performance was evaluated across risk groups defined according to the \textit{Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease} by the Kidney Disease: Improving Global Outcomes (KDIGO) CKD Workgroup (2013). Very high risk was classified as (eGFR $< 30$ and ACR $< 30$) or (eGFR $< 45$ and ACR $= 30{-}299$) or (eGFR $< 60$ and ACR $\geq 300$); high risk as (eGFR $= 30{-}44$ and ACR $< 30$) or (eGFR $= 45{-}59$ and ACR $= 30{-}299$) or (eGFR $\geq 60$ and ACR $\geq 300$); medium risk as (eGFR $= 45{-}59$ and ACR $< 30$) or (eGFR $\geq 60$ and ACR $= 30{-}299$); and low risk as (eGFR $\geq 60$ and ACR $< 30$). Each model’s ability to assign individuals to these risk categories and its accuracy in predicting 2-year and 5-year ESRD risk within these categories were assessed. Additional analyses were performed in diabetic and hypertensive populations, comparing the predictive performance of all three models using consistent cases and controls across subgroups.
+
+To further assess predictive accuracy for ESRD, we applied the KFRE to estimate 2-year and 5-year ESRD risk within the North American population, comparing the race-inclusive MDRD and CKD-EPI 2009 equations with the race-neutral CKD-EPI 2021 equation. Predictive performance was analyzed across racial groups (Black or African American, White, Asian, and All Races), using key metrics including the area under the receiver operating characteristic curve (AUC), Harrell's C-statistic, sensitivity, specificity, positive predictive value (PPV), and negative predictive value (NPV). A specificity target of 0.9 was established to optimize cut-off points for ESRD prediction, balancing false positives and false negatives to enhance clinical relevance and minimize unnecessary interventions.
+
+For robustness, we implemented a bootstrapping method with 5,000 iterations to generate error bars for AUC and Harrell's C-statistic. AUC measured the model's ability to discriminate between ESRD cases and non-cases, while Harrell's C-statistic assessed the concordance between predicted risks and observed outcomes over time. Censoring at 2 and 5 years allowed us to restrict the analysis to clinically relevant prediction windows, reducing potential bias from events beyond these periods.
+
+This comprehensive statistical approach enabled us to capture the variability in ESRD risk across diverse subpopulations. It provided a thorough evaluation of KFRE model performance across racial groups, assessing predictive power over both short-term (2-year) and medium-term (5-year) intervals and ensuring rigorous validation across clinically relevant time horizons.
+
+\subsection*{RESULTS}
+\textbf{Kaplan-Meier Survival Analysis}\\
+In the Kaplan-Meier survival analysis of end-stage renal disease (ESRD) risk across racial groups, distinct survival patterns were observed among Black, Asian, and White participants. The overall survival curve (Figure 2a) shows that Black participants had a markedly lower survival probability over time, indicating a significantly higher risk of progression to ESRD. In contrast, White participants demonstrated the highest survival probabilities across the observed period, suggesting a lower ESRD risk compared to other groups. Asian participants displayed an intermediate survival trend, with survival probabilities between those of Black and White groups. The zoomed-in view (Figure 2b) highlights these early differences, with a steep initial decline in survival for Black participants, emphasizing an elevated ESRD risk in the early observation period. These findings suggest substantial disparities in ESRD risk across racial groups, particularly the higher burden faced by Black individuals, as evidenced by their consistently lower survival probabilities.
+
+\begin{figure}[ht]
+    \centering
+    % Original Kaplan-Meier Survival Plot
+    \begin{subfigure}[b]{0.6\linewidth} % Increase the size of the first plot for clarity
+        \centering
+        \includegraphics[width=\linewidth]{Enhanced_Kaplan_Meier_Survival_Plot_Lancet.png}
+        \caption{Kaplan-Meier survival plot for Black, White, and Asian populations, showing overall survival curves.}
+        \label{fig:subfig1}
+    \end{subfigure}
+    \hfill
+    % Zoomed Kaplan-Meier Survival Plot
+    \begin{subfigure}[b]{0.35\linewidth} % Make the zoomed version bigger for better detail
+        \centering
+        \includegraphics[width=\linewidth]{Zoom_Kaplan_Meier.png}
+        \caption{Zoomed-in view of the Kaplan-Meier survival plot, focusing on the initial time period to highlight early survival differences among racial groups.}
+        \label{fig:subfig2}
+    \end{subfigure}
+    % Combined Caption
+    \caption{Kaplan-Meier survival analysis of end-stage renal disease (ESRD) risk across Black, White, and Asian populations. (A) The overall survival curve demonstrates the survival trends over time for each racial group. (B) A zoomed-in view of the initial time period provides a detailed look at early survival differences among the groups.}
+    \label{fig:combined}
+\end{figure}
+
+
+\noindent \textbf{Distribution of eGFR Values}\\
+The results (Figure 3a) highlight distinct patterns in CKD stage classification across racial groups when using different eGFR models, particularly between race-inclusive models (MDRD and CKD-EPI 2009) and the race-neutral CKD-EPI 2021. In Black individuals, the CKD-EPI 2021 model, which does not include race adjustments, places a larger proportion in advanced CKD stages (CKD and early-stage CKD), with fewer individuals classified as "normal" (eGFR $\geq 90$ mL/min/1.73 m\textsuperscript{2}) compared to the race-inclusive models. This suggests an elevated calculated CKD risk for Black individuals in the absence of race-based adjustments. Conversely, Asian individuals show a different distribution: the CKD-EPI 2021 model categorizes more individuals as having "normal" kidney function and fewer in the CKD stages, indicating a lower calculated risk of CKD progression in this group under the race-neutral model. For White individuals, the CKD-EPI 2021 model also results in a higher proportion in the "normal" category, with fewer classified into the CKD stages compared to MDRD and CKD-EPI 2009. The Bland-Altman plots (Figure 3b) further support these findings by illustrating significant variability across models, particularly for Black individuals when comparing CKD-EPI 2021 with the race-inclusive models. These results underscore the influence of race-based adjustments on CKD classification, with CKD-EPI 2021 shifting risk categorization patterns significantly, especially for Black individuals, potentially impacting clinical decision-making and risk stratification.
+
+
+\begin{figure}[ht]
+    \centering
+    % CKD Stage Distribution Plot
+    \begin{subfigure}[b]{0.45\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{CKD_Stage_Distribution_by_eGFR_Method_and_Race.png}
+        \caption{Comparison of chronic kidney disease (CKD) stage distributions across racial groups based on different eGFR calculation methods. This stacked bar chart illustrates how eGFR equations categorize individuals within Asian, Black, and White populations into CKD stages: normal (eGFR $\geq 90$ mL/min/1.73 m\textsuperscript{2}), early-stage CKD (eGFR 60--89 mL/min/1.73 m\textsuperscript{2}), CKD (eGFR 15--59 mL/min/1.73 m\textsuperscript{2}), and kidney failure (eGFR $< 15$ mL/min/1.73 m\textsuperscript{2}).}
+        \label{fig:ckd_stage_distribution}
+    \end{subfigure}
+    \hfill
+    % Bland-Altman Plot
+    \begin{subfigure}[b]{0.45\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{Bland_Altman_Race_Subgroup_Multi_Panel_Updated.png}
+        \caption{Bland-Altman analysis of eGFR model performance across racial subgroups, highlighting agreement and bias in eGFR estimates among Asian, Black, and White populations. This plot compares the agreement between different eGFR methods to identify any systematic differences across racial groups.}
+        \label{fig:bland_altman_analysis}
+    \end{subfigure}
+    % Combined Figure Caption
+    \caption{eGFR model evaluation across racial groups. (A) CKD stage distribution across Asian, Black, and White populations using different eGFR methods, showing how each model categorizes CKD risk stages. (B) Bland-Altman plot for assessing agreement and bias between eGFR methods in racial subgroups, illustrating variation in eGFR model performance across Asian, Black, and White populations.}
+    \label{fig:combined_eGFR_evaluation}
+\end{figure}
+
+
+\noindent \textbf{Predictive Performance}\\
+In evaluating the predictive superiority of the CKD-EPI 2021 model over the older MDRD and CKD-EPI 2009 models, analyses were conducted across different populations (All Populations, Black, Asian, and White) and various risk groups (CKD Very High Risk, CKD High Risk, CKD Medium Risk, Diabetic, and Hypertensive). Superiority was assessed by examining whether the difference in C-statistics between CKD-EPI 2021 and the older models had confidence intervals that excluded zero, indicating statistical significance.
+
+\textbf{2-Year Prediction}\\
+\noindent \textbf{All Populations Group:} For the 2-year prediction in the All Populations cohort, the difference in C-statistics between CKD-EPI 2021 and the older models (MDRD and CKD-EPI 2009) crossed zero in most risk categories. This indicates that, across this mixed cohort, there was no statistically significant superiority of CKD-EPI 2021 over MDRD or CKD-EPI 2009 in predicting CKD progression for any specific risk group.
+
+\noindent \textbf{Black Population:} In the Black population, CKD-EPI 2021 demonstrated statistically significant superiority over both MDRD and CKD-EPI 2009 in specific high-risk groups for the 2-year prediction. Notably, in the CKD Very High Risk and CKD High Risk groups, the entire confidence interval for the C-statistic difference was above zero, indicating improved predictive accuracy with CKD-EPI 2021 in these categories.
+
+\noindent \textbf{Asian and White Populations:} In the Asian and White populations, the confidence intervals for the C-statistic differences between CKD-EPI 2021 and the older models included zero across all risk groups. Thus, no statistically significant superiority of CKD-EPI 2021 was observed for the 2-year prediction in these populations.
+
+\textbf{5-Year Prediction}\\
+\noindent \textbf{All Populations Group:} For the 5-year prediction in the All Populations group, similar findings were observed as with the 2-year prediction. The confidence intervals for differences in C-statistics generally crossed zero, except in some high-risk categories where trends suggested possible superiority, though statistical significance was not achieved consistently across these categories.
+
+\noindent \textbf{Black Population:} Consistent with the 2-year prediction, the CKD-EPI 2021 model displayed statistically significant superiority over MDRD and CKD-EPI 2009 in the Black population’s CKD Very High Risk and CKD High Risk groups. In these categories, the confidence intervals for the C-statistic differences did not include zero, further supporting the model’s superior predictive capability for this specific population over a 5-year period.
+
+\noindent \textbf{Asian and White Populations:} For the 5-year prediction, the Asian and White populations showed confidence intervals that included zero across all risk groups, indicating no statistically significant difference between CKD-EPI 2021 and the older models.
+
+\begin{figure}[h!]
+    \centering
+    \begin{subfigure}{0.23\textwidth} % Slightly less than 0.25 to fit within one row
+        \centering
+        \includegraphics[width=\linewidth]{asian_combined_prediction_tables.png}
+        \caption{Asian Population}
+        \label{fig:asian-population}
+    \end{subfigure}%
+    \hspace{0.02\textwidth} % Adjust the space between figures
+    \begin{subfigure}{0.23\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{black_combined_prediction_tables.png}
+        \caption{Black Population}
+        \label{fig:black-population}
+    \end{subfigure}%
+    \hspace{0.02\textwidth}
+    \begin{subfigure}{0.23\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{white_combined_prediction_tables.png}
+        \caption{White Population}
+        \label{fig:white-population}
+    \end{subfigure}%
+    \hspace{0.02\textwidth}
+    \begin{subfigure}{0.23\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{all_combined_prediction_tables.png}
+        \caption{All Populations}
+        \label{fig:all-populations}
+    \end{subfigure}
+    \caption{Prediction accuracy comparison across different populations.}
+    \label{fig:population-prediction-comparison}
+\end{figure}
+
+
+\begin{figure}[h!]
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{2year_combined_superiority_plots.png}
+        \caption{2-Year Prediction Superiority Test Across Populations}
+        \label{fig:2year_superiority}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{5year_combined_superiority_plots.png}
+        \caption{5-Year Prediction Superiority Test Across Populations}
+        \label{fig:5year_superiority}
+    \end{subfigure}
+    \caption{Superiority test results comparing CKD-EPI 2021 to CKD-EPI 2009 and MDRD models across different populations for both 2-year and 5-year prediction periods. Each plot displays the difference in C-statistic, with bold zero lines indicating the threshold for superiority (values above zero suggest that CKD-EPI 2021 may be superior in predictive accuracy).}
+    \label{fig:superiority_tests_combined}
+\end{figure}
+
+
+\subsection*{DISCUSSION}
+This study provides a comprehensive evaluation of the predictive accuracy of the MDRD, CKD-EPI-2009, and CKD-EPI-2021 equations across Asian, Black, White, and combined populations, offering insights into the shift toward race-neutral models in CKD risk prediction. Our findings demonstrate that while the CKD-EPI-2021 model does not universally show significant superiority over the MDRD and CKD-EPI-2009 models across all populations and risk categories, it does achieve significant improvements in predictive accuracy in specific high-risk groups within the Black population. For both 2-year and 5-year predictions, CKD-EPI 2021 displayed significant superiority over the older models in the Black population's CKD Very High Risk and CKD High Risk groups, indicating enhanced predictive capability for these categories. In other populations (All Populations, Asian, and White), however, the confidence intervals for the differences in C-statistics typically included zero, suggesting that CKD-EPI 2021 was not superior to the older models across these groups.
+
+The presence of significant improvements in the Black population underscores the potential benefit of CKD-EPI 2021 for enhancing risk stratification accuracy in specific demographic contexts. However, the lack of consistent superiority across all populations suggests that while CKD-EPI 2021 is an effective and equitable alternative to race-based models, it may not universally enhance predictive performance over existing models for every demographic and risk category. This finding is particularly relevant as the CKD-EPI 2021 model's race-neutral approach supports an equitable framework that does not rely on race as a variable. Such an approach aligns with ongoing efforts to reduce health disparities and addresses ethical concerns regarding the use of race in clinical decision-making. Importantly, our results indicate that a race-neutral model can achieve comparable accuracy without sacrificing predictive performance, particularly for populations traditionally considered to have distinct CKD risk profiles, such as Black individuals.
+
+This study highlights the complexity of CKD risk factors and the importance of considering a broader range of variables, including social determinants of health, in predictive modeling. While prior models incorporated race adjustments due to observed differences in GFR levels, this practice has been increasingly questioned since race is a social construct, not a direct biological factor \cite{Inker2021NewRace}. Additional complexity arises from genetic factors, such as APOL1 risk variants in individuals of African ancestry, which do not consistently result in disease \cite{Bock2019RacialStudy}. Socioeconomic factors—such as healthcare access and income also influence CKD progression, particularly among minority populations facing structural inequities \cite{vanZwieten2024SocioeconomicLife-Course}. Future research should explore whether incorporating a multidimensional approach, including clinical, genetic, and socioeconomic variables, could enhance CKD prediction accuracy and applicability across diverse populations. 
+
+\newpage
+\bibliographystyle{plain}
+\bibliography{references}
+
+
+\end{document}
+

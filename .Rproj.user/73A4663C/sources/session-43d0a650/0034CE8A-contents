@@ -1,0 +1,799 @@
+---
+title: "plots"
+format: html
+---
+
+## Original
+
+```{r}
+# Load necessary libraries
+library(gt)
+library(dplyr)
+
+# Define the hierarchical structure with exactly 60 rows, adding "All Races" as a reference for each risk group
+Risk_Group <- c(
+  "CKD Very High Risk", rep("", 11), 
+  "CKD High Risk", rep("", 11),
+  "CKD Medium Risk", rep("", 11),
+  "Diabetic Population", rep("", 11),
+  "Hypertensive Population", rep("", 11)
+)
+Race <- rep(c("  All Races", "", "", "  Black", "", "", "  White", "", "", "  Asian", "", ""), times = 5)
+Model <- rep(c("    MDRD", "    CKD-EPI-2009", "    CKD-EPI-2021"), times = 20)
+
+# Define example C_Statistic, CI_Lower, and CI_Upper values for 2-year and 5-year predictions including "All Races" as reference
+# Define example C_Statistic, CI_Lower, and CI_Upper values for 2-year and 5-year predictions, including "All Races" as reference
+
+C_Statistic_2yr <- c(
+  #### VERY HIGH RISK
+  # CKD Very High Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD Very High Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD Very High Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD Very High Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  
+  
+  
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.81, # All Races - MDRD - 2-year
+  0.84, # All Races - CKD-EPI-2009 - 2-year
+  0.85, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.77, # Black - CKD-EPI-2009 - 2-year
+  0.88, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.77, # White - MDRD - 2-year
+  0.83, # White - CKD-EPI-2009 - 2-year
+  0.83, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  0.67, # Asian - MDRD - 2-year
+  0.65, # Asian - CKD-EPI-2009 - 2-year
+  0.57,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # CKD Medium Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Hypertension - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Diabetic - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79  # Asian - CKD-EPI-2021 - 2-year
+
+    
+)
+
+
+CI_Lower_2yr <- c(
+  # very high risk
+  0.76, # All Races - MDRD - 2-year CI Lower
+  0.79, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.77, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  0.65, # Black - MDRD - 2-year CI Lower
+  0.70, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.76, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  0.76, # White - MDRD - 2-year CI Lower
+  0.79, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.75, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  0.72, # Asian - MDRD - 2-year CI Lower
+  0.71, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.65,  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+    
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.72, # All Races - MDRD - 2-year CI Lower
+  0.78, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.78, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Black or African American
+  0.60, # Black - MDRD - 2-year CI Lower
+  0.69, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.81, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - White
+  0.62, # White - MDRD - 2-year CI Lower
+  0.70, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.71, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD High Risk - Asian
+  0.47, # Asian - MDRD - 2-year CI Lower
+  0.47, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.44,  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+  
+  # CKD Medium Risk - All Races
+  0.78, # All Races - MDRD - 2-year CI Lower
+  0.81, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.80, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD Medium Risk - Black or African American
+  0.70, # Black - MDRD - 2-year CI Lower
+  0.74, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.80, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD Medium Risk - White
+  0.79, # White - MDRD - 2-year CI Lower
+  0.82, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.78, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # CKD Medium Risk - Asian
+  0.82, # Asian - MDRD - 2-year CI Lower
+  0.82, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.79,  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+  
+  # Hypertension - All Races
+  0.78, # All Races - MDRD - 2-year CI Lower
+  0.81, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.80, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # Hypertension - Black or African American
+  0.70, # Black - MDRD - 2-year CI Lower
+  0.74, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.80, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # Hypertension - White
+  0.79, # White - MDRD - 2-year CI Lower
+  0.82, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.78, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # Hypertension - Asian
+  0.82, # Asian - MDRD - 2-year CI Lower
+  0.82, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.79,  # Asian - CKD-EPI-2021 - 2-year CI Lower
+  
+  
+  # Diabetic - All Races
+  0.78, # All Races - MDRD - 2-year CI Lower
+  0.81, # All Races - CKD-EPI-2009 - 2-year CI Lower
+  0.80, # All Races - CKD-EPI-2021 - 2-year CI Lower
+  
+  # Diabetic - Black or African American
+  0.70, # Black - MDRD - 2-year CI Lower
+  0.74, # Black - CKD-EPI-2009 - 2-year CI Lower
+  0.80, # Black - CKD-EPI-2021 - 2-year CI Lower
+  
+  # Diabetic - White
+  0.79, # White - MDRD - 2-year CI Lower
+  0.82, # White - CKD-EPI-2009 - 2-year CI Lower
+  0.78, # White - CKD-EPI-2021 - 2-year CI Lower
+  
+  # Diabetic - Asian
+  0.82, # Asian - MDRD - 2-year CI Lower
+  0.82, # Asian - CKD-EPI-2009 - 2-year CI Lower
+  0.79  # Asian - CKD-EPI-2021 - 2-year CI Lower
+
+
+)
+
+
+CI_Upper_2yr <- c(
+  # very high risk
+  0.80, # All Races - MDRD - 2-year CI Upper
+  0.83, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.81, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  0.75, # Black - MDRD - 2-year CI Upper
+  0.78, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.83, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  0.83, # White - MDRD - 2-year CI Upper
+  0.85, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.82, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  0.92, # Asian - MDRD - 2-year CI Upper
+  0.91, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  0.89,  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  #### HIGH RISK
+  # CKD High Risk - All Races
+  0.88, # All Races - MDRD - 2-year CI Upper
+  0.90, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.91, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Black or African American
+  0.78, # Black - MDRD - 2-year CI Upper
+  0.84, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.93, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - White
+  0.90, # White - MDRD - 2-year CI Upper
+  0.94, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.94, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD High Risk - Asian
+  1.00, # Asian - MDRD - 2-year CI Upper
+  1.00, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  1.00,  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  
+  # CKD Medium Risk - All Races
+  0.78, # All Races - MDRD - 2-year CI Upper
+  0.81, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD Medium Risk - Black or African American
+  0.70, # Black - MDRD - 2-year CI Upper
+  0.74, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD Medium Risk - White
+  0.79, # White - MDRD - 2-year CI Upper
+  0.82, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.78, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # CKD Medium Risk - Asian
+  0.82, # Asian - MDRD - 2-year CI Upper
+  0.82, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  0.79,  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  
+  # Hypertension - All Races
+  0.78, # All Races - MDRD - 2-year CI Upper
+  0.81, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # Hypertension - Black or African American
+  0.70, # Black - MDRD - 2-year CI Upper
+  0.74, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # Hypertension - White
+  0.79, # White - MDRD - 2-year CI Upper
+  0.82, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.78, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # Hypertension - Asian
+  0.82, # Asian - MDRD - 2-year CI Upper
+  0.82, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  0.79,  # Asian - CKD-EPI-2021 - 2-year CI Upper
+  
+  
+  # Diabetic - All Races
+  0.78, # All Races - MDRD - 2-year CI Upper
+  0.81, # All Races - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # All Races - CKD-EPI-2021 - 2-year CI Upper
+  
+  # Diabetic - Black or African American
+  0.70, # Black - MDRD - 2-year CI Upper
+  0.74, # Black - CKD-EPI-2009 - 2-year CI Upper
+  0.80, # Black - CKD-EPI-2021 - 2-year CI Upper
+  
+  # Diabetic - White
+  0.79, # White - MDRD - 2-year CI Upper
+  0.82, # White - CKD-EPI-2009 - 2-year CI Upper
+  0.78, # White - CKD-EPI-2021 - 2-year CI Upper
+  
+  # Diabetic - Asian
+  0.82, # Asian - MDRD - 2-year CI Upper
+  0.82, # Asian - CKD-EPI-2009 - 2-year CI Upper
+  0.79  # Asian - CKD-EPI-2021 - 2-year CI Upper
+
+)
+
+
+
+# Update C_Statistic, CI_Lower, and CI_Upper values for the 5-year predictions for CKD Very High Risk population
+
+C_Statistic_5yr <- c(
+  # CKD Very High Risk - All Races
+  0.77, # All Races - MDRD - 5-year
+  0.80, # All Races - CKD-EPI-2009 - 5-year
+  0.78, # All Races - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Black or African American
+  0.69, # Black - MDRD - 5-year
+  0.73, # Black - CKD-EPI-2009 - 5-year
+  0.77, # Black - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - White
+  0.78, # White - MDRD - 5-year
+  0.81, # White - CKD-EPI-2009 - 5-year
+  0.77, # White - CKD-EPI-2021 - 5-year
+  
+  # CKD Very High Risk - Asian
+  0.82, # Asian - MDRD - 5-year
+  0.82, # Asian - CKD-EPI-2009 - 5-year
+  0.79,  # Asian - CKD-EPI-2021 - 5-year
+  
+  # CKD High Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # CKD Medium Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Hypertension - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Diabetic - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79  # Asian - CKD-EPI-2021 - 2-year
+
+)
+
+
+CI_Lower_5yr <- c(
+  0.75, # All Races - MDRD - 5-year CI Lower
+  0.78, # All Races - CKD-EPI-2009 - 5-year CI Lower
+  0.76, # All Races - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.65, # Black - MDRD - 5-year CI Lower
+  0.69, # Black - CKD-EPI-2009 - 5-year CI Lower
+  0.74, # Black - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.74, # White - MDRD - 5-year CI Lower
+  0.78, # White - CKD-EPI-2009 - 5-year CI Lower
+  0.74, # White - CKD-EPI-2021 - 5-year CI Lower
+  
+  0.70, # Asian - MDRD - 5-year CI Lower
+  0.70, # Asian - CKD-EPI-2009 - 5-year CI Lower
+  0.65,  # Asian - CKD-EPI-2021 - 5-year CI Lower
+  
+  
+  # CKD High Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # CKD Medium Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Hypertension - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Diabetic - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79  # Asian - CKD-EPI-2021 - 2-year
+
+)
+
+
+CI_Upper_5yr <- c(
+  0.79, # All Races - MDRD - 5-year CI Upper
+  0.82, # All Races - CKD-EPI-2009 - 5-year CI Upper
+  0.80, # All Races - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.73, # Black - MDRD - 5-year CI Upper
+  0.76, # Black - CKD-EPI-2009 - 5-year CI Upper
+  0.80, # Black - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.81, # White - MDRD - 5-year CI Upper
+  0.84, # White - CKD-EPI-2009 - 5-year CI Upper
+  0.80, # White - CKD-EPI-2021 - 5-year CI Upper
+  
+  0.92, # Asian - MDRD - 5-year CI Upper
+  0.92, # Asian - CKD-EPI-2009 - 5-year CI Upper
+  0.90,  # Asian - CKD-EPI-2021 - 5-year CI Upper
+  
+  
+  
+  # CKD High Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD High Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # CKD Medium Risk - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # CKD Medium Risk - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Hypertension - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Hypertension - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79,  # Asian - CKD-EPI-2021 - 2-year
+  
+  
+  # Diabetic - All Races
+  0.78, # All Races - MDRD - 2-year
+  0.81, # All Races - CKD-EPI-2009 - 2-year
+  0.80, # All Races - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Black or African American
+  0.70, # Black - MDRD - 2-year
+  0.74, # Black - CKD-EPI-2009 - 2-year
+  0.80, # Black - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - White
+  0.79, # White - MDRD - 2-year
+  0.82, # White - CKD-EPI-2009 - 2-year
+  0.78, # White - CKD-EPI-2021 - 2-year
+  
+  # Diabetic - Asian
+  0.82, # Asian - MDRD - 2-year
+  0.82, # Asian - CKD-EPI-2009 - 2-year
+  0.79  # Asian - CKD-EPI-2021 - 2-year
+
+)
+
+
+
+# Combine data for 2-year and 5-year predictions
+data_2yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_2yr,
+  CI_Lower = CI_Lower_2yr,
+  CI_Upper = CI_Upper_2yr
+)
+
+data_5yr <- data.frame(
+  Risk_Group = Risk_Group,
+  Race = Race,
+  Model = Model,
+  C_Statistic = C_Statistic_5yr,
+  CI_Lower = CI_Lower_5yr,
+  CI_Upper = CI_Upper_5yr
+)
+
+# Function to create gt table without the Prediction_Period column
+create_gt_table <- function(data, title) {
+  data %>%
+    mutate(
+      CI_Label = sprintf("%.2f (%.2f–%.2f)", C_Statistic, CI_Lower, CI_Upper),
+      Error_Bar = ifelse(!is.na(C_Statistic),
+                         paste0("⎯", strrep("⎯", round((C_Statistic - CI_Lower) / 0.01)), "●", strrep("⎯", round((CI_Upper - C_Statistic) / 0.01)), "⎯"), 
+                         "")
+    ) %>%
+    gt() %>%
+    cols_hide(columns = c(C_Statistic, CI_Lower, CI_Upper)) %>%
+    tab_header(
+      title = md(paste0("**Hierarchical Forest Plot Table - ", title, "**"))
+    ) %>%
+    cols_label(
+      Risk_Group = md("**Cohort / Population**"),
+      Model = md("**Prediction Model**"),
+      CI_Label = md("**C Statistic (95% CI)**"),
+      Error_Bar = md("**Error Bar with Point Estimate**")
+    ) %>%
+    fmt_markdown(columns = c(Risk_Group, Race, Model)) %>%
+    tab_style(
+      style = cell_text(weight = "bold"),
+      locations = cells_body(
+        columns = "Risk_Group",
+        rows = data$Risk_Group %in% c("CKD Very High Risk", "CKD High Risk", "CKD Medium Risk", "Diabetic Population", "Hypertensive Population")
+      )
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(20)),
+      locations = cells_body(
+        columns = "Race",
+        rows = !data$Race %in% c("CKD Very High Risk", "CKD High Risk", "CKD Medium Risk", "Diabetic Population", "Hypertensive Population")
+      )
+    ) %>%
+    tab_style(
+      style = cell_text(indent = px(40)),
+      locations = cells_body(
+        columns = "Model",
+        rows = !data$Model %in% c("CKD Very High Risk", "CKD High Risk", "CKD Medium Risk", "Diabetic Population", "Hypertensive Population")
+      )
+    ) %>%
+    cols_align(
+      align = "center",
+      columns = c("CI_Label", "Error_Bar")
+    ) %>%
+    tab_options(
+      table.font.size = px(10)
+    ) %>%
+    tab_style(
+      style = cell_text(color = "blue"),
+      locations = cells_body(
+        columns = "Error_Bar",
+        rows = data$Model == "    MDRD"
+      )
+    ) %>%
+    tab_style(
+      style = cell_text(color = "green"),
+      locations = cells_body(
+        columns = "Error_Bar",
+        rows = data$Model == "    CKD-EPI-2009"
+      )
+    ) %>%
+    tab_style(
+      style = cell_text(color = "red"),
+      locations = cells_body(
+        columns = "Error_Bar",
+        rows = data$Model == "    CKD-EPI-2021"
+      )
+    )
+}
+
+# Create tables for both 2-year and 5-year predictions without the Prediction_Period column
+table_2yr <- create_gt_table(data_2yr, title = "2-year Prediction")
+table_5yr <- create_gt_table(data_5yr, title = "5-year Prediction")
+
+# Display the tables
+table_2yr
+table_5yr
+
+# Install necessary libraries if not already installed
+# install.packages("webshot2")
+library(webshot2)
+
+# Save as images
+gtsave(table_2yr, "2_year_prediction_table.png")
+gtsave(table_5yr, "5_year_prediction_table.png")
+
+# Load magick library
+library(magick)
+
+# Read the saved images
+img_2yr <- image_read("2_year_prediction_table.png")
+img_5yr <- image_read("5_year_prediction_table.png")
+
+# Combine images side-by-side
+combined_img <- image_append(c(img_2yr, img_5yr))
+
+# Save the combined image
+image_write(combined_img, path = "combined_prediction_table.png", format = "png")
+image_write(combined_img, path = "combined_prediction_table.pdf", format = "pdf")
+
+
+```
+
+# 
+
+# 
